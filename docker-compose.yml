@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  whale-tracker:
+    build: .
+    container_name: hyperliquid-whale-tracker
+    restart: unless-stopped
+    
+    # Environment variables (override with .env file)
+    environment:
+      - ENABLE_TELEGRAM_ALERTS=${ENABLE_TELEGRAM_ALERTS:-true}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - USE_TESTNET=${USE_TESTNET:-false}
+      - POLLING_INTERVAL=${POLLING_INTERVAL:-30}
+      - MIN_POSITION_SIZE=${MIN_POSITION_SIZE:-1000}
+      - MIN_CHANGE_THRESHOLD=${MIN_CHANGE_THRESHOLD:-500}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    # Persist data and logs
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+# Create external volumes for data persistence
+volumes:
+  whale_data:
+    driver: local
+  whale_logs:
+    driver: local 

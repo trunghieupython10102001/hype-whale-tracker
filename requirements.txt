@@ -1,0 +1,7 @@
+hyperliquid-python-sdk>=0.15.0
+python-dotenv>=1.0.0
+pandas>=2.0.0
+asyncio-mqtt>=0.13.0
+aiofiles>=23.0.0
+python-telegram-bot>=21.0.0
+requests>=2.31.0 
