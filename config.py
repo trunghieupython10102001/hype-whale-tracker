@@ -23,20 +23,16 @@ class Config:
     API_URL = TESTNET_URL if USE_TESTNET else MAINNET_URL
     
     # List of wallet addresses to track
-    # Add the addresses you want to monitor here
+    # Start with empty list - add addresses dynamically via Telegram /add command
     TRACKED_ADDRESSES: List[str] = [
-        # Example addresses - replace with actual addresses you want to track
-        "0xcd5051944f780a621ee62e39e493c489668acf4d",
-        "0x5078c2fbea2b2ad61bc840bc023e35fce56bedb6",
-        "0x8af700ba841f30e0a3fcb0ee4c4a9d223e1efa05"
-        # Add more addresses here
-        # "0x1234567890123456789012345678901234567890",
-        # "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        # Use /add command in Telegram to add addresses dynamically
+        # Example: /add 0xcd5051944f780a621ee62e39e493c489668acf4d:Whale #1
+        # Example: /add 0x5078c2fbea2b2ad61bc840bc023e35fce56bedb6:James Wynn
     ]
     
     # Tracking Settings
     # How often to check for position changes (in seconds)
-    POLLING_INTERVAL = 30
+    POLLING_INTERVAL = 10
     
     # Minimum position size to track (in USD)
     MIN_POSITION_SIZE = 1000
@@ -70,9 +66,9 @@ class Config:
     def validate_config(cls) -> bool:
         """Validate the configuration settings"""
         if not cls.TRACKED_ADDRESSES:
-            print("ERROR: No addresses configured for tracking!")
-            print("Please add wallet addresses to TRACKED_ADDRESSES in config.py")
-            return False
+            print("INFO: No static addresses configured")
+            print("💡 Use Telegram /add command to add addresses dynamically")
+            # Don't return False - empty list is now valid since we can add via Telegram
             
         if cls.POLLING_INTERVAL < 10:
             print("WARNING: Polling interval is very short. Consider using >= 10 seconds")
@@ -100,9 +96,9 @@ class Config:
         You can customize this to give meaningful names to addresses
         """
         return {
-            "0x5078c2fbea2b2ad61bc840bc023e35fce56bedb6": "James Wynn"
-            # Example: "0xcd5051944f780a621ee62e39e493c489668acf4d": "Whale #1",
-            # Add your own labels here
+            # Static address labels - add here if you have static addresses
+            # Example: "0x5078c2fbea2b2ad61bc840bc023e35fce56bedb6": "James Wynn"
+            # Dynamic labels are handled via Telegram /add command
         }
     
     @classmethod

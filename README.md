@@ -24,13 +24,18 @@ pip install -r requirements.txt
 
 ### 2. Configure Addresses
 
-Edit `config.py` and add the wallet addresses you want to track:
+**Option A: Start Empty (Recommended)**
+The tracker starts with no addresses. Add them dynamically via Telegram:
+```bash
+# No configuration needed - TRACKED_ADDRESSES is empty by default
+```
 
+**Option B: Static Configuration**
+Edit `config.py` to add initial addresses:
 ```python
 TRACKED_ADDRESSES: List[str] = [
     "0xcd5051944f780a621ee62e39e493c489668acf4d",  # Example address
-    "0x1234567890123456789012345678901234567890",  # Add your addresses here
-    "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    # Add more addresses here or use /add command in Telegram
 ]
 ```
 
@@ -90,11 +95,11 @@ You should receive a test message in Telegram!
 Key settings you can customize:
 
 ```python
-# Addresses to monitor
-TRACKED_ADDRESSES = ["0x...", "0x..."]
+# Addresses to monitor (start empty, add via Telegram)
+TRACKED_ADDRESSES = []
 
-# How often to check for changes (seconds)
-POLLING_INTERVAL = 30
+# How often to check for changes (seconds) 
+POLLING_INTERVAL = 10
 
 # Minimum position size to track (USD)
 MIN_POSITION_SIZE = 1000
