@@ -103,4 +103,11 @@ class Config:
             "0x5078c2fbea2b2ad61bc840bc023e35fce56bedb6": "James Wynn"
             # Example: "0xcd5051944f780a621ee62e39e493c489668acf4d": "Whale #1",
             # Add your own labels here
-        } 
+        }
+    
+    @classmethod
+    def get_all_tracked_addresses(cls) -> List[str]:
+        """Get all tracked addresses including dynamically added ones"""
+        # This will be called by the tracker to get the complete list
+        # The telegram notifier will update this list when new addresses are added
+        return cls.TRACKED_ADDRESSES.copy()

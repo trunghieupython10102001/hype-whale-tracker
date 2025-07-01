@@ -385,8 +385,8 @@ class HyperliquidTracker:
     
     def _format_position_change(self, change: PositionChange) -> str:
         """Format position change for display"""
-        # Get address label or use shortened address
-        labels = self.config.get_address_labels()
+        # Get address label including dynamic addresses
+        labels = self.telegram_notifier.get_all_address_labels()
         address_label = labels.get(change.address, f"{change.address[:6]}...{change.address[-4:]}")
         
         if change.change_type == "opened":
@@ -414,7 +414,10 @@ class HyperliquidTracker:
         """Check all tracked addresses for position changes"""
         all_changes = []
         
-        for address in self.config.TRACKED_ADDRESSES:
+        # Get all addresses including dynamically added ones
+        all_addresses = self.telegram_notifier.get_all_tracked_addresses()
+        
+        for address in all_addresses:
             try:
                 # Get current positions
                 new_positions = await self.get_user_positions(address)
@@ -435,8 +438,11 @@ class HyperliquidTracker:
         
         # Handle initial sync
         if self.is_initial_sync:
+            total_positions = sum(len(positions) for positions in self.current_positions.values())
+            total_addresses = len(self.telegram_notifier.get_all_tracked_addresses())
+            
             self.logger.info("🔄 Initial sync completed - positions loaded from live data")
-            self.logger.info(f"📊 Tracking {sum(len(positions) for positions in self.current_positions.values())} positions across {len(self.current_positions)} addresses")
+            self.logger.info(f"📊 Tracking {total_positions} positions across {total_addresses} addresses")
             self.is_initial_sync = False  # Enable notifications for subsequent checks
             self._save_positions()  # Save the initial state
             return []  # Don't send notifications for initial sync
@@ -472,7 +478,13 @@ class HyperliquidTracker:
             return await self._run_test_monitoring()
             
         self.logger.info("Starting position monitoring...")
-        self.logger.info(f"Tracking {len(self.config.TRACKED_ADDRESSES)} addresses")
+        
+        # Get total addresses including dynamic ones
+        total_addresses = len(self.telegram_notifier.get_all_tracked_addresses())
+        static_addresses = len(self.config.TRACKED_ADDRESSES)
+        dynamic_addresses = total_addresses - static_addresses
+        
+        self.logger.info(f"Tracking {total_addresses} addresses ({static_addresses} static, {dynamic_addresses} dynamic)")
         self.logger.info(f"Polling interval: {self.config.POLLING_INTERVAL} seconds")
         
         try:
