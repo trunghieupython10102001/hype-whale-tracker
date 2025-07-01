@@ -77,7 +77,7 @@ class WhaleTrackerCommandHandler:
                 self.logger.error("Telegram bot token not configured")
                 return
             
-            # Create application
+            # Create application with timeout settings
             self.application = Application.builder().token(self.config.TELEGRAM_BOT_TOKEN).build()
             
             # Add command handlers
@@ -91,24 +91,51 @@ class WhaleTrackerCommandHandler:
             self.logger.info("📋 Available commands: /add, /remove, /list, /help")
             self.logger.info("💡 Use /help in Telegram for usage instructions")
             
-            # Start the bot
-            await self.application.initialize()
-            await self.application.start()
-            await self.application.updater.start_polling()
-            
-            # Keep running
-            while True:
-                await asyncio.sleep(1)
+            # Start the bot with better error handling
+            try:
+                await self.application.initialize()
+                await self.application.start()
+                
+                # Test connection first
+                self.logger.info("🔍 Testing bot connection...")
+                bot_info = await self.application.bot.get_me()
+                self.logger.info(f"✅ Connected as: @{bot_info.username}")
+                
+                # Start polling
+                self.logger.info("🔄 Starting polling for commands...")
+                await self.application.updater.start_polling(
+                    drop_pending_updates=True,
+                    timeout=30
+                )
+                
+                self.logger.info("✅ Command handler is now listening for commands!")
+                
+                # Keep running
+                while True:
+                    await asyncio.sleep(1)
+                    
+            except Exception as startup_error:
+                self.logger.error(f"Failed to start bot: {startup_error}")
+                self.logger.error("This might be due to:")
+                self.logger.error("• Invalid bot token")
+                self.logger.error("• Network connectivity issues") 
+                self.logger.error("• Firewall blocking Telegram API")
+                raise
                 
         except KeyboardInterrupt:
-            self.logger.info("Command handler stopped by user")
+            self.logger.info("📴 Command handler stopped by user")
         except Exception as e:
-            self.logger.error(f"Error in command handler: {e}")
+            self.logger.error(f"❌ Error in command handler: {e}")
         finally:
-            if self.application:
-                await self.application.updater.stop()
-                await self.application.stop()
-                await self.application.shutdown()
+            if self.application and self.application.updater.running:
+                try:
+                    self.logger.info("🛑 Stopping command handler...")
+                    await self.application.updater.stop()
+                    await self.application.stop()
+                    await self.application.shutdown()
+                    self.logger.info("✅ Command handler stopped cleanly")
+                except Exception as cleanup_error:
+                    self.logger.error(f"Error during cleanup: {cleanup_error}")
 
 
 async def main():
