@@ -13,8 +13,9 @@ from decimal import Decimal
 try:
     from telegram import Bot, Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-    from telegram.error import TelegramError
+    from telegram.error import TelegramError, TimedOut, NetworkError
     from telegram.constants import ParseMode
+    from telegram.request import HTTPXRequest
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
@@ -27,6 +28,9 @@ except ImportError:
     ContextTypes = None
     ParseMode = None
     TelegramError = Exception
+    TimedOut = Exception
+    NetworkError = Exception
+    HTTPXRequest = None
 
 from config import Config
 
@@ -63,8 +67,20 @@ class TelegramNotifier:
                 self.logger.error("python-telegram-bot library not available")
                 return
             
-            # Create bot with custom settings for better reliability
-            self.bot = Bot(token=self.config.TELEGRAM_BOT_TOKEN)
+            # Create custom request object with better timeout settings
+            if HTTPXRequest:
+                request = HTTPXRequest(
+                    connection_pool_size=8,
+                    connect_timeout=30.0,
+                    read_timeout=30.0,
+                    write_timeout=30.0,
+                    pool_timeout=5.0
+                )
+                # Create bot with custom request settings for better reliability
+                self.bot = Bot(token=self.config.TELEGRAM_BOT_TOKEN, request=request)
+            else:
+                # Fallback for older versions
+                self.bot = Bot(token=self.config.TELEGRAM_BOT_TOKEN)
             
             # Set up command handlers (optional - for advanced usage)
             # Note: Command handling requires running the bot application separately
@@ -84,20 +100,44 @@ class TelegramNotifier:
             return False
         
         try:
-            # Try to send a simple test message first
+            # Try to get bot info first (lighter than sending message)
+            self.logger.info("Testing Telegram bot connection...")
+            
+            # Set a reasonable timeout for connection test
+            bot_info = await asyncio.wait_for(
+                self.bot.get_me(),
+                timeout=15.0  # 15 second timeout
+            )
+            
+            self.logger.info(f"✅ Connected to Telegram as @{bot_info.username}")
+            
+            # Try to send a simple test message
             test_message = "🤖 Whale Tracker Test\n\nConnection successful! ✅"
             
-            success = await self.send_message(test_message)
+            success = await asyncio.wait_for(
+                self.send_message(test_message),
+                timeout=10.0  # 10 second timeout for message
+            )
+            
             if success:
                 self.logger.info("Telegram bot test message sent successfully")
                 return True
             else:
                 return False
             
+        except asyncio.TimeoutError:
+            self.logger.error("Telegram connection timed out - check network connectivity or firewall")
+            self.logger.error("💡 Tip: Telegram may be blocked on your network")
+            return False
+        except (TimedOut, NetworkError) as e:
+            self.logger.error(f"Telegram network error: {e}")
+            self.logger.error("💡 This usually indicates network connectivity issues")
+            return False
         except Exception as e:
             error_msg = str(e).lower()
             if 'timeout' in error_msg or 'timed out' in error_msg:
                 self.logger.error("Telegram connection timed out - check network connectivity")
+                self.logger.error("💡 Tip: Try running on a server where Telegram is not blocked")
             elif 'unauthorized' in error_msg:
                 self.logger.error("Telegram bot unauthorized - check bot token")
             elif 'forbidden' in error_msg:
@@ -114,15 +154,25 @@ class TelegramNotifier:
         try:
             if parse_mode is None:
                 parse_mode = ParseMode.HTML if TELEGRAM_AVAILABLE else None
-                
-            await self.bot.send_message(
-                chat_id=self.config.TELEGRAM_CHAT_ID,
-                text=message,
-                parse_mode=parse_mode,
-                disable_web_page_preview=True
+            
+            # Add timeout to message sending
+            await asyncio.wait_for(
+                self.bot.send_message(
+                    chat_id=self.config.TELEGRAM_CHAT_ID,
+                    text=message,
+                    parse_mode=parse_mode,
+                    disable_web_page_preview=True
+                ),
+                timeout=15.0  # 15 second timeout
             )
             return True
             
+        except asyncio.TimeoutError:
+            self.logger.error("Failed to send Telegram message: Connection timed out")
+            return False
+        except (TimedOut, NetworkError) as e:
+            self.logger.error(f"Failed to send Telegram message: Network error - {e}")
+            return False
         except Exception as e:
             self.logger.error(f"Failed to send Telegram message: {e}")
             return False
