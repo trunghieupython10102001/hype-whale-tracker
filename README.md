@@ -37,7 +37,11 @@ TRACKED_ADDRESSES: List[str] = [
 ### 3. Run the Tracker
 
 ```bash
+# Main whale tracker
 python main.py
+
+# Optional: Run command handler for Telegram commands (separate terminal)
+python telegram_command_handler.py
 ```
 
 ## 📱 Telegram Setup (Optional)
@@ -152,20 +156,41 @@ def get_address_labels(cls) -> Dict[str, str]:
 
 ### 📱 Telegram Notifications
 
-Your Telegram bot will send messages like:
+Your Telegram bot will send individual alerts for position changes:
 
 ```
-🟢 James Wynn
-OPENED BTC LONG
-$50,000.00 @ $42,500
-🕐 10:30:45
-
-📈 DeFi Fund  
-INCREASED ETH LONG
+📈 James Wynn
+INCREASED BTC LONG
 +$25,000.00
-Total: $175,000.00
+Total: $1,394,810.92
 🕐 10:35:12
+📊 View on Hyperdash
+
+🔴 DeFi Fund
+CLOSED ETH SHORT
+$50,000.00
+PnL: +$2,150.00
+🕐 10:42:33
+📊 View on Hyperdash
 ```
+
+**Note:** Opening positions are NOT sent to avoid startup spam. Only actual changes (increases, decreases, closures) trigger alerts.
+
+### 🤖 Telegram Commands
+
+Add new addresses dynamically via Telegram:
+
+```
+/add 0x1234567890123456789012345678901234567890:My Whale
+/add 0xabcdefabcdefabcdefabcdefabcdefabcdefabcd
+/list
+/help
+```
+
+**Setup:**
+1. Run the command handler: `python3 telegram_command_handler.py`
+2. Use commands in your Telegram chat with the bot
+3. Addresses are validated and stored persistently
 
 ## 🏗️ Project Structure
 
