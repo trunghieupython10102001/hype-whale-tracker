@@ -78,6 +78,10 @@ class HyperliquidTracker:
         self.test_mode = test_mode  # Enable test mode for offline testing
         self.test_cycle = 0  # Track test cycles for simulation
         
+        # Flag to prevent startup notification spam
+        self.is_initial_sync = True  # Skip notifications on first check after startup
+        self.startup_message_sent = False  # Track if startup message was sent
+        
         # Initialize Telegram notifier
         self.telegram_notifier = get_telegram_notifier()
         
@@ -418,19 +422,26 @@ class HyperliquidTracker:
                 # Get old positions
                 old_positions = self.current_positions.get(address, {})
                 
-                # Detect changes
-                changes = self._detect_changes(address, old_positions, new_positions)
+                # Detect changes (but skip notifications on initial sync)
+                if not self.is_initial_sync:
+                    changes = self._detect_changes(address, old_positions, new_positions)
+                    all_changes.extend(changes)
                 
                 # Update stored positions
                 self.current_positions[address] = new_positions
                 
-                # Add to all changes
-                all_changes.extend(changes)
-                
             except Exception as e:
                 self.logger.error(f"Error checking address {address}: {e}")
         
-        # Process and display changes
+        # Handle initial sync
+        if self.is_initial_sync:
+            self.logger.info("🔄 Initial sync completed - positions loaded from live data")
+            self.logger.info(f"📊 Tracking {sum(len(positions) for positions in self.current_positions.values())} positions across {len(self.current_positions)} addresses")
+            self.is_initial_sync = False  # Enable notifications for subsequent checks
+            self._save_positions()  # Save the initial state
+            return []  # Don't send notifications for initial sync
+        
+        # Process and display changes for regular monitoring
         if all_changes:
             self.logger.info(f"Found {len(all_changes)} position changes")
             
@@ -464,18 +475,19 @@ class HyperliquidTracker:
         self.logger.info(f"Tracking {len(self.config.TRACKED_ADDRESSES)} addresses")
         self.logger.info(f"Polling interval: {self.config.POLLING_INTERVAL} seconds")
         
-        # Send startup notification
-        if self.config.ENABLE_TELEGRAM_ALERTS:
-            try:
-                await self.telegram_notifier.send_startup_message()
-            except Exception as e:
-                self.logger.error(f"Failed to send startup notification: {e}")
-        
         try:
             while True:
                 try:
                     # Check all addresses
                     await self.check_all_addresses()
+                    
+                    # Send startup notification after initial sync is complete
+                    if not self.is_initial_sync and self.config.ENABLE_TELEGRAM_ALERTS and not self.startup_message_sent:
+                        try:
+                            await self.telegram_notifier.send_startup_message()
+                            self.startup_message_sent = True  # Prevent sending startup message repeatedly
+                        except Exception as e:
+                            self.logger.error(f"Failed to send startup notification: {e}")
                     
                     # Wait for next check
                     await asyncio.sleep(self.config.POLLING_INTERVAL)
