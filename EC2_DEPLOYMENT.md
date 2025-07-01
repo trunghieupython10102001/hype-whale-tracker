@@ -90,8 +90,8 @@ nano ~/whale-tracker/.env
 ```env
 # Telegram Bot Configuration
 ENABLE_TELEGRAM_ALERTS=true
-TELEGRAM_BOT_TOKEN=7795827757:AAFTCtguIHrWP-g3imap87QJuzoJL4EIEdE
-TELEGRAM_CHAT_ID=1537030983
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
 
 # Hyperliquid Configuration
 USE_TESTNET=false
