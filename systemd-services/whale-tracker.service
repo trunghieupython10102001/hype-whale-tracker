@@ -1,0 +1,17 @@
+[Unit]
+Description=Hyperliquid Whale Tracker - Main Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/whale-tracker
+Environment=PATH=/usr/bin:/usr/local/bin
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target 
