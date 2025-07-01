@@ -1,34 +1,55 @@
 version: '3.8'
 
 services:
+  # Main whale tracker service
   whale-tracker:
     build: .
     container_name: hyperliquid-whale-tracker
     restart: unless-stopped
+    command: python3 main.py
     
     # Environment variables (override with .env file)
     environment:
+      # Telegram Configuration
       - ENABLE_TELEGRAM_ALERTS=${ENABLE_TELEGRAM_ALERTS:-true}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      
+      # Network Configuration
       - USE_TESTNET=${USE_TESTNET:-false}
-      - POLLING_INTERVAL=${POLLING_INTERVAL:-30}
-      - MIN_POSITION_SIZE=${MIN_POSITION_SIZE:-1000}
-      - MIN_CHANGE_THRESHOLD=${MIN_CHANGE_THRESHOLD:-500}
+      
+      # Tracking Configuration
+      - POLLING_INTERVAL=${POLLING_INTERVAL:-10}  # How often to check positions (seconds)
+      - MIN_POSITION_SIZE=${MIN_POSITION_SIZE:-1000}  # Minimum position size to track (USD)
+      - MIN_CHANGE_THRESHOLD=${MIN_CHANGE_THRESHOLD:-500}  # Minimum change to notify (USD)
+      
+      # Logging Configuration
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     
     # Persist data and logs
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - whale_data:/app/data
+      - whale_logs:/app/logs
       - ./.env:/app/.env:ro
+    
+    # Networking
+    networks:
+      - whale-network
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import requests; requests.get('https://api.hyperliquid.xyz/info', timeout=10)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     
     # Logging configuration
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
-        max-file: "3"
+        max-file: "5"
     
     # Resource limits
     deploy:
@@ -40,9 +61,82 @@ services:
           memory: 256M
           cpus: '0.25'
 
-# Create external volumes for data persistence
+  # Telegram command handler service
+  whale-commands:
+    build: .
+    container_name: hyperliquid-whale-commands
+    restart: unless-stopped
+    command: python3 telegram_command_handler.py
+    
+    # Environment variables (same as main service)
+    environment:
+      # Telegram Configuration
+      - ENABLE_TELEGRAM_ALERTS=${ENABLE_TELEGRAM_ALERTS:-true}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      
+      # Network Configuration
+      - USE_TESTNET=${USE_TESTNET:-false}
+      
+      # Logging Configuration
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
+    # Share data volume with main service
+    volumes:
+      - whale_data:/app/data
+      - whale_logs:/app/logs
+      - ./.env:/app/.env:ro
+    
+    # Networking
+    networks:
+      - whale-network
+    
+    # Depends on main service for shared data
+    depends_on:
+      whale-tracker:
+        condition: service_healthy
+    
+    # Health check for bot connectivity
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os; from telegram import Bot; import asyncio; bot = Bot(os.getenv('TELEGRAM_BOT_TOKEN')); asyncio.run(bot.get_me())"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 45s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    
+    # Resource limits (lighter for command handler)
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.3'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+
+# Networks
+networks:
+  whale-network:
+    driver: bridge
+
+# Persistent volumes for data and logs
 volumes:
   whale_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
   whale_logs:
-    driver: local 
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs 

@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Production Docker Compose Configuration
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  whale-tracker:
+    # Production optimizations
+    restart: always
+    
+    # Enhanced environment for production
+    environment:
+      # Optimized polling for production (every 10 seconds)
+      - POLLING_INTERVAL=10
+      # Higher thresholds for production to reduce noise
+      - MIN_POSITION_SIZE=5000
+      - MIN_CHANGE_THRESHOLD=1000
+      # Production logging
+      - LOG_LEVEL=INFO
+    
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    
+    # Enhanced logging for production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+
+  whale-commands:
+    # Production optimizations
+    restart: always
+    
+    # Enhanced logging for production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25' 
