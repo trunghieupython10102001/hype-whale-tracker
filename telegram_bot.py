@@ -256,6 +256,27 @@ class TelegramNotifier:
         
         return await self.send_message(message)
     
+    async def send_address_added_notification(self, address: str, label: str) -> bool:
+        """Send notification when a new address is added via Telegram"""
+        message = f"🆕 <b>New Address Added to Tracking</b>\n\n"
+        message += f"📍 <b>{label}</b>\n"
+        message += f"📊 {address[:10]}...{address[-8:]}\n"
+        message += f"🔗 <a href='https://hyperdash.xyz/address/{address}'>View on Hyperdash</a>\n\n"
+        message += f"⚡ Now monitoring for position changes\n"
+        message += f"🕐 {datetime.now().strftime('%H:%M:%S')}"
+        
+        return await self.send_message(message)
+    
+    async def send_address_removed_notification(self, address: str, label: str) -> bool:
+        """Send notification when an address is removed"""
+        message = f"🗑️ <b>Address Removed from Tracking</b>\n\n"
+        message += f"📍 <b>{label}</b>\n"
+        message += f"📊 {address[:10]}...{address[-8:]}\n\n"
+        message += f"🛑 No longer monitoring this address\n"
+        message += f"🕐 {datetime.now().strftime('%H:%M:%S')}"
+        
+        return await self.send_message(message)
+    
     def _load_dynamic_addresses(self) -> Dict[str, str]:
         """Load dynamically added addresses from file"""
         try:
@@ -340,15 +361,21 @@ class TelegramNotifier:
             self.dynamic_addresses[address] = label
             self._save_dynamic_addresses()
             
-            # Add to runtime tracking (we'll need to modify the tracker to check this)
+            # Add to runtime tracking
             self.config.TRACKED_ADDRESSES.append(address)
             
+            # Send confirmation reply
             await update.message.reply_text(
-                f"✅ Added new address to tracking:\n"
-                f"📍 {label}\n"
+                f"✅ <b>Address Added Successfully!</b>\n\n"
+                f"📍 <b>{label}</b>\n"
                 f"📊 {address[:10]}...{address[-8:]}\n"
-                f"🔗 <a href='https://hyperdash.xyz/address/{address}'>View on Hyperdash</a>"
+                f"🔗 <a href='https://hyperdash.xyz/address/{address}'>View on Hyperdash</a>\n\n"
+                f"⚡ Tracker will start monitoring this address in the next polling cycle (10 seconds)\n"
+                f"🔔 You'll receive alerts for position changes (increases, decreases, closures)"
             )
+            
+            # Send notification to main chat about new address
+            await self.send_address_added_notification(address, label)
             
             self.logger.info(f"Added new address via Telegram: {address} ({label})")
             
@@ -388,6 +415,69 @@ class TelegramNotifier:
             
         except Exception as e:
             self.logger.error(f"Error handling list command: {e}")
+            await update.message.reply_text("❌ Error processing command")
+    
+    async def handle_remove_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /remove command to remove addresses"""
+        try:
+            # Check if user is authorized
+            if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
+                await update.message.reply_text("❌ Unauthorized access")
+                return
+            
+            if not context.args:
+                await update.message.reply_text(
+                    "📋 Usage: /remove address\n"
+                    "Example: /remove 0x1234...5678\n"
+                    "Use /list to see tracked addresses"
+                )
+                return
+            
+            address = " ".join(context.args).strip()
+            
+            # Validate address format
+            if not self._validate_address(address):
+                await update.message.reply_text(
+                    "❌ Invalid address format\n"
+                    "Address must be 42 characters long and start with 0x"
+                )
+                return
+            
+            # Check if address is being tracked
+            if address not in self.config.TRACKED_ADDRESSES:
+                await update.message.reply_text(
+                    f"⚠️ Address {address[:10]}... is not being tracked"
+                )
+                return
+            
+            # Get label before removal
+            all_labels = self.get_all_address_labels()
+            label = all_labels.get(address, f"{address[:6]}...{address[-4:]}")
+            
+            # Remove from tracking
+            if address in self.config.TRACKED_ADDRESSES:
+                self.config.TRACKED_ADDRESSES.remove(address)
+            
+            # Remove from dynamic addresses if it exists there
+            if address in self.dynamic_addresses:
+                del self.dynamic_addresses[address]
+                self._save_dynamic_addresses()
+            
+            # Send confirmation
+            await update.message.reply_text(
+                f"✅ <b>Address Removed Successfully!</b>\n\n"
+                f"📍 <b>{label}</b>\n"
+                f"📊 {address[:10]}...{address[-8:]}\n\n"
+                f"🛑 No longer monitoring this address"
+            )
+            
+            # Send notification to main chat
+            await self.send_address_removed_notification(address, label)
+            
+            self.logger.info(f"Removed address via Telegram: {address} ({label})")
+            
+        except Exception as e:
+            self.logger.error(f"Error handling remove command: {e}")
             await update.message.reply_text("❌ Error processing command")
     
     def get_all_tracked_addresses(self) -> List[str]:

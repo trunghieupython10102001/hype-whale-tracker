@@ -35,6 +35,10 @@ class WhaleTrackerCommandHandler:
         """Handle /list command"""
         await self.notifier.handle_list_command(update, context)
     
+    async def remove_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /remove command"""
+        await self.notifier.handle_remove_command(update, context)
+    
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
@@ -49,6 +53,9 @@ class WhaleTrackerCommandHandler:
             "📌 <b>/add address</b>\n"
             "   Add new address with auto-generated label\n"
             "   Example: /add 0x1234...5678\n\n"
+            "🗑️ <b>/remove address</b>\n"
+            "   Remove address from tracking\n"
+            "   Example: /remove 0x1234...5678\n\n"
             "📊 <b>/list</b>\n"
             "   Show all tracked addresses\n\n"
             "❓ <b>/help</b>\n"
@@ -57,7 +64,8 @@ class WhaleTrackerCommandHandler:
             "• Addresses must be 42 characters long\n"
             "• Addresses must start with 0x\n"
             "• Only actual position changes are alerted\n"
-            "• Opening positions are skipped to avoid spam"
+            "• Opening positions are skipped to avoid spam\n"
+            "• Changes take effect in next polling cycle (10s)"
         )
         
         await update.message.reply_text(help_text)
@@ -74,12 +82,13 @@ class WhaleTrackerCommandHandler:
             
             # Add command handlers
             self.application.add_handler(CommandHandler("add", self.add_command))
+            self.application.add_handler(CommandHandler("remove", self.remove_command))
             self.application.add_handler(CommandHandler("list", self.list_command))
             self.application.add_handler(CommandHandler("help", self.help_command))
             self.application.add_handler(CommandHandler("start", self.help_command))
             
             self.logger.info("🤖 Telegram command handler started")
-            self.logger.info("📋 Available commands: /add, /list, /help")
+            self.logger.info("📋 Available commands: /add, /remove, /list, /help")
             self.logger.info("💡 Use /help in Telegram for usage instructions")
             
             # Start the bot
@@ -109,6 +118,7 @@ async def main():
     print("📋 This handler enables these Telegram commands:")
     print("   /add address:label - Add new address with label")
     print("   /add address - Add new address")
+    print("   /remove address - Remove address from tracking")
     print("   /list - Show tracked addresses")
     print("   /help - Show help message")
     print("=" * 60)
