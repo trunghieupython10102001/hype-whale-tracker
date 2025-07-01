@@ -106,7 +106,7 @@ class TelegramNotifier:
             return False
     
     def _format_position_change_message(self, change: Any) -> str:
-        """Format a position change for Telegram"""
+        """Format a position change for Telegram with Hyperdash link"""
         # Get address label
         labels = self.config.get_address_labels()
         address_label = labels.get(change.address, f"{change.address[:6]}...{change.address[-4:]}")
@@ -144,11 +144,12 @@ class TelegramNotifier:
             details = f"${change.change_amount:,.2f}"
             side = ""
         
-        # Build message
+        # Build message with Hyperdash link
         message = f"{emoji} <b>{address_label}</b>\n"
         message += f"{action} {change.symbol} {side}\n"
         message += f"{details}\n"
-        message += f"🕐 {change.timestamp.strftime('%H:%M:%S')}"
+        message += f"🕐 {change.timestamp.strftime('%H:%M:%S')}\n"
+        message += f"📊 <a href='https://hyperdash.xyz/address/{change.address}'>View on Hyperdash</a>"
         
         return message
     
@@ -161,38 +162,19 @@ class TelegramNotifier:
         return await self.send_message(message)
     
     async def send_multiple_changes(self, changes: List[Any]) -> bool:
-        """Send multiple position changes in a single message"""
-        if not changes or not self.config.TELEGRAM_SEND_POSITION_CHANGES:
-            return True
+        """DEPRECATED: Send multiple position changes in a single message
         
-        # Group changes by address for better readability
-        grouped_changes = {}
+        This method is kept for backward compatibility but is no longer used.
+        The tracker now sends individual alerts for each position change.
+        """
+        # This method is deprecated - we now send individual alerts
+        self.logger.warning("send_multiple_changes is deprecated - use individual alerts instead")
+        
+        # For backward compatibility, send individual changes
         for change in changes:
-            address = change.address
-            if address not in grouped_changes:
-                grouped_changes[address] = []
-            grouped_changes[address].append(change)
+            await self.send_position_change(change)
         
-        # Build message
-        message = f"🐋 <b>Whale Activity Detected</b>\n"
-        message += f"📊 {len(changes)} position changes\n\n"
-        
-        for address, address_changes in grouped_changes.items():
-            labels = self.config.get_address_labels()
-            address_label = labels.get(address, f"{address[:6]}...{address[-4:]}")
-            
-            message += f"<b>📍 {address_label}</b>\n"
-            
-            for change in address_changes:
-                change_msg = self._format_position_change_message(change)
-                # Remove the address part since we already have it
-                change_lines = change_msg.split('\n')
-                simplified_msg = '\n'.join(change_lines[1:])  # Skip first line
-                message += f"  {simplified_msg}\n"
-            
-            message += "\n"
-        
-        return await self.send_message(message)
+        return True
     
     async def send_daily_summary(self, summary_data: Dict[str, Any]) -> bool:
         """Send a daily summary of whale activity"""
