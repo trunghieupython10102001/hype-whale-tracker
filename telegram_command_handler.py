@@ -28,41 +28,51 @@ class WhaleTrackerCommandHandler:
         )
     
     async def add_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /add command"""
+        """Handle /add command - admin only"""
+        # Check if user is authorized (admin only)
+        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
+            await update.message.reply_text("❌ Admin access required for this command")
+            return
+        
         await self.notifier.handle_add_command(update, context)
     
     async def list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /list command"""
+        """Handle /list command - admin only"""
+        # Check if user is authorized (admin only)  
+        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
+            await update.message.reply_text("❌ Admin access required for this command")
+            return
+        
         await self.notifier.handle_list_command(update, context)
     
     async def remove_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /remove command"""
+        """Handle /remove command - admin only"""
+        # Check if user is authorized (admin only)
+        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
+            await update.message.reply_text("❌ Admin access required for this command")
+            return
+        
         await self.notifier.handle_remove_command(update, context)
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /help command"""
-        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
-            await update.message.reply_text("❌ Unauthorized access")
-            return
-        
+        """Handle /help command - available to everyone"""
         help_text = (
             "🐋 Whale Tracker Commands\n\n"
-            "📌 /add address:label\n"
-            "   Add new address with custom label\n"
-            "   Example: /add 0x1234...5678:My Whale\n\n"
-            "📌 /add address\n"
-            "   Add new address with auto-generated label\n"
-            "   Example: /add 0x1234...5678\n\n"
-            "🗑️ /remove address\n"
-            "   Remove address from tracking\n"
-            "   Example: /remove 0x1234...5678\n\n"
-            "📊 /list\n"
-            "   Show all tracked addresses\n\n"
+            "🌍 Public Commands (anyone can use):\n"
             "🔍 /check address\n"
-            "   Check all current positions for any address\n"
+            "   Check current positions for any address\n"
             "   Example: /check 0x1234...5678\n\n"
             "❓ /help\n"
             "   Show this help message\n\n"
+            "🔒 Admin Commands (restricted):\n"
+            "📌 /add address:label\n"
+            "   Add new address with custom label\n"
+            "📌 /add address\n"
+            "   Add new address with auto-generated label\n"
+            "🗑️ /remove address\n"
+            "   Remove address from tracking\n"
+            "📊 /list\n"
+            "   Show all tracked addresses\n\n"
             "📝 Notes:\n"
             "• Addresses must be 42 characters long\n"
             "• Addresses must start with 0x\n"
@@ -73,12 +83,30 @@ class WhaleTrackerCommandHandler:
         
         await update.message.reply_text(help_text)
     
+    async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /start command - available to everyone"""
+        username = update.message.from_user.first_name or "User"
+        
+        welcome_text = (
+            f"🐋 Welcome to Whale Tracker, {username}!\n\n"
+            "This bot helps you monitor Hyperliquid trading positions.\n\n"
+            "🌍 Public Commands:\n"
+            "🔍 /check address - Check positions for any address\n"
+            "❓ /help - Show all commands\n\n"
+            "💡 Try: /check 0x[address] to see someone's positions!\n\n"
+            "📊 Built for tracking whale movements on Hyperliquid DEX"
+        )
+        
+        # Log the new user
+        user_id = update.message.from_user.id
+        username_log = update.message.from_user.username or "no_username"
+        self.logger.info(f"New user started bot: @{username_log} (ID: {user_id})")
+        
+        await update.message.reply_text(welcome_text)
+    
     async def check_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /check command to show positions for a given address"""
-        # Check if message is from authorized chat
-        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
-            await update.message.reply_text("❌ Unauthorized access")
-            return
+        """Handle /check command - available to everyone"""
+        # No authorization check - this command is public
         
         # Get the address from command arguments
         if not context.args:
@@ -116,8 +144,10 @@ class WhaleTrackerCommandHandler:
             response = self._format_positions_response(address, positions)
             await loading_message.edit_text(response)
             
-            # Log the check action
-            self.logger.info(f"Checked positions for address: {address[:10]}... ({len(positions)} positions)")
+            # Log the check action with user info
+            username = update.message.from_user.username or "Unknown"
+            user_id = update.message.from_user.id
+            self.logger.info(f"Public /check used by @{username} (ID: {user_id}) for address: {address[:10]}... ({len(positions)} positions)")
             
         except Exception as e:
             self.logger.error(f"Error checking positions for {address}: {e}")
@@ -133,8 +163,8 @@ class WhaleTrackerCommandHandler:
             )
     
     async def echo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Echo any text message back to the user"""
-        # Check if message is from authorized chat
+        """Echo any text message - restricted to admin only"""
+        # Check if message is from authorized chat (admin only)
         if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
             await update.message.reply_text("❌ Unauthorized access")
             return
@@ -289,15 +319,16 @@ class WhaleTrackerCommandHandler:
             self.application.add_handler(CommandHandler("list", self.list_command))
             self.application.add_handler(CommandHandler("check", self.check_command))
             self.application.add_handler(CommandHandler("help", self.help_command))
-            self.application.add_handler(CommandHandler("start", self.help_command))
+            self.application.add_handler(CommandHandler("start", self.start_command))
             
             # Add message handler for echo functionality
             # This handles all text messages that are not commands
             self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo_message))
             
             self.logger.info("🤖 Telegram command handler started")
-            self.logger.info("📋 Available commands: /add, /remove, /list, /check, /help")
-            self.logger.info("🔄 Echo functionality enabled - all text messages will be echoed back")
+            self.logger.info("🌍 Public commands: /check, /help, /start")
+            self.logger.info("🔒 Admin commands: /add, /remove, /list")
+            self.logger.info("🔄 Echo functionality enabled for admin only")
             self.logger.info("💡 Use /help in Telegram for usage instructions")
             
             # Start the bot with better error handling
@@ -352,13 +383,16 @@ async def main():
     print("🤖 Starting Telegram Command Handler for Whale Tracker")
     print("=" * 60)
     print("📋 This handler enables these Telegram commands:")
+    print("🌍 Public commands (anyone can use):")
+    print("   /check address - Check positions for any address")
+    print("   /help - Show help message")
+    print("   /start - Show welcome message")
+    print("🔒 Admin commands (restricted access):")
     print("   /add address:label - Add new address with label")
     print("   /add address - Add new address")
     print("   /remove address - Remove address from tracking")
     print("   /list - Show tracked addresses")
-    print("   /check address - Check positions for any address")
-    print("   /help - Show help message")
-    print("🔄 Echo functionality:")
+    print("🔄 Echo functionality (admin only):")
     print("   Any text message will be echoed back")
     print("=" * 60)
     print("💡 Run this alongside your main whale tracker")
