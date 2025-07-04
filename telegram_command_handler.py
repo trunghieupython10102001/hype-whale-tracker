@@ -58,6 +58,9 @@ class WhaleTrackerCommandHandler:
             "   Example: /remove 0x1234...5678\n\n"
             "📊 <b>/list</b>\n"
             "   Show all tracked addresses\n\n"
+            "🔍 <b>/check address</b>\n"
+            "   Check all current positions for any address\n"
+            "   Example: /check 0x1234...5678\n\n"
             "❓ <b>/help</b>\n"
             "   Show this help message\n\n"
             "📝 <b>Notes:</b>\n"
@@ -69,6 +72,65 @@ class WhaleTrackerCommandHandler:
         )
         
         await update.message.reply_text(help_text)
+    
+    async def check_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /check command to show positions for a given address"""
+        # Check if message is from authorized chat
+        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
+            await update.message.reply_text("❌ Unauthorized access")
+            return
+        
+        # Get the address from command arguments
+        if not context.args:
+            await update.message.reply_text(
+                "❌ <b>Usage:</b> /check address\n\n"
+                "📌 <b>Example:</b>\n"
+                "/check 0x1234567890123456789012345678901234567890\n\n"
+                "💡 <b>Tip:</b> Use the full 42-character address starting with 0x"
+            )
+            return
+        
+        address = context.args[0].strip()
+        
+        # Validate address format
+        if not self._validate_address(address):
+            await update.message.reply_text(
+                "❌ <b>Invalid Address Format</b>\n\n"
+                "📝 Address must be:\n"
+                "• 42 characters long\n"
+                "• Start with 0x\n"
+                "• Contain only hexadecimal characters\n\n"
+                "📌 <b>Example:</b>\n"
+                "0x1234567890123456789012345678901234567890"
+            )
+            return
+        
+        # Show loading message
+        loading_message = await update.message.reply_text("🔍 Checking positions for address...")
+        
+        try:
+            # Get positions for the address
+            positions = await self._get_address_positions(address)
+            
+            # Format and send response
+            response = self._format_positions_response(address, positions)
+            await loading_message.edit_text(response)
+            
+            # Log the check action
+            self.logger.info(f"Checked positions for address: {address[:10]}... ({len(positions)} positions)")
+            
+        except Exception as e:
+            self.logger.error(f"Error checking positions for {address}: {e}")
+            await loading_message.edit_text(
+                f"❌ <b>Error checking positions</b>\n\n"
+                f"Failed to fetch data for address:\n"
+                f"<code>{address[:10]}...{address[-8:]}</code>\n\n"
+                f"This could be due to:\n"
+                f"• Network connectivity issues\n"
+                f"• API rate limiting\n"
+                f"• Invalid address (not on Hyperliquid)\n"
+                f"• Temporary API issues"
+            )
     
     async def echo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Echo any text message back to the user"""
@@ -89,6 +151,128 @@ class WhaleTrackerCommandHandler:
         # Log the echo action
         self.logger.info(f"Echoed message: {original_text}")
     
+    def _validate_address(self, address: str) -> bool:
+        """Validate if an address looks like a valid Ethereum address"""
+        if not address:
+            return False
+        
+        # Basic Ethereum address validation
+        if not address.startswith('0x'):
+            return False
+        
+        if len(address) != 42:
+            return False
+        
+        # Check if it's hexadecimal (after 0x prefix)
+        try:
+            int(address[2:], 16)
+            return True
+        except ValueError:
+            return False
+    
+    async def _get_address_positions(self, address: str) -> dict:
+        """Get current positions for a specific address using Hyperliquid API"""
+        from hyperliquid.info import Info
+        from decimal import Decimal
+        
+        try:
+            # Initialize info client
+            info_client = Info(self.config.API_URL, skip_ws=True)
+            
+            # Get user state from Hyperliquid API
+            user_state = info_client.user_state(address)
+            
+            positions = {}
+            
+            # Check if user has any positions
+            if not user_state or 'assetPositions' not in user_state:
+                return positions
+            
+            # Process each position
+            for pos_data in user_state['assetPositions']:
+                position = pos_data['position']
+                
+                # Skip if position size is zero
+                if float(position['szi']) == 0:
+                    continue
+                
+                symbol = position['coin']
+                size = Decimal(position['szi'])
+                entry_price = Decimal(position['entryPx']) if position['entryPx'] else Decimal('0')
+                unrealized_pnl = Decimal(position['unrealizedPnl'])
+                
+                # Calculate market value
+                market_value = abs(size) * entry_price
+                
+                # Determine position side
+                side = "long" if size > 0 else "short"
+                
+                # Store position info
+                positions[symbol] = {
+                    'symbol': symbol,
+                    'size': abs(size),
+                    'side': side,
+                    'entry_price': entry_price,
+                    'market_value': market_value,
+                    'unrealized_pnl': unrealized_pnl
+                }
+            
+            return positions
+            
+        except Exception as e:
+            self.logger.error(f"Error getting positions for {address}: {e}")
+            raise
+    
+    def _format_positions_response(self, address: str, positions: dict) -> str:
+        """Format positions data for Telegram response"""
+        # Get address label if it exists in tracked addresses
+        labels = self.notifier.get_all_address_labels()
+        address_label = labels.get(address, f"{address[:6]}...{address[-4:]}")
+        
+        # Build response message
+        message = f"📊 <b>Position Check Results</b>\n\n"
+        message += f"📍 <b>{address_label}</b>\n"
+        message += f"🔗 <a href='https://hyperdash.info/trader/{address}'>View on Hyperdash</a>\n\n"
+        
+        if not positions:
+            message += f"❌ <b>No Open Positions</b>\n\n"
+            message += f"This address currently has no open positions on Hyperliquid.\n\n"
+            message += f"💡 <b>Note:</b> This could mean:\n"
+            message += f"• Address has no trading activity\n"
+            message += f"• All positions have been closed\n"
+            message += f"• Address is not active on Hyperliquid"
+        else:
+            # Calculate total portfolio value
+            total_value = sum(pos['market_value'] for pos in positions.values())
+            total_pnl = sum(pos['unrealized_pnl'] for pos in positions.values())
+            
+            message += f"✅ <b>{len(positions)} Open Position(s)</b>\n"
+            message += f"💰 Total Value: ${total_value:,.2f}\n"
+            message += f"📈 Total PnL: ${total_pnl:+,.2f}\n\n"
+            
+            # Sort positions by market value (largest first)
+            sorted_positions = sorted(positions.values(), key=lambda x: x['market_value'], reverse=True)
+            
+            # Add each position
+            for i, pos in enumerate(sorted_positions, 1):
+                side_emoji = "🟢" if pos['side'] == 'long' else "🔴"
+                
+                message += f"{side_emoji} <b>{pos['symbol']} {pos['side'].upper()}</b>\n"
+                message += f"📦 Size: {pos['size']:.4f}\n"
+                message += f"💵 Entry: ${pos['entry_price']:,.2f}\n"
+                message += f"💰 Value: ${pos['market_value']:,.2f}\n"
+                message += f"📊 PnL: ${pos['unrealized_pnl']:+,.2f}\n"
+                
+                # Add separator if not the last position
+                if i < len(sorted_positions):
+                    message += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        # Add timestamp
+        from datetime import datetime
+        message += f"\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        return message
+    
     async def start_command_handler(self):
         """Start the command handler"""
         try:
@@ -103,6 +287,7 @@ class WhaleTrackerCommandHandler:
             self.application.add_handler(CommandHandler("add", self.add_command))
             self.application.add_handler(CommandHandler("remove", self.remove_command))
             self.application.add_handler(CommandHandler("list", self.list_command))
+            self.application.add_handler(CommandHandler("check", self.check_command))
             self.application.add_handler(CommandHandler("help", self.help_command))
             self.application.add_handler(CommandHandler("start", self.help_command))
             
@@ -111,7 +296,7 @@ class WhaleTrackerCommandHandler:
             self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo_message))
             
             self.logger.info("🤖 Telegram command handler started")
-            self.logger.info("📋 Available commands: /add, /remove, /list, /help")
+            self.logger.info("📋 Available commands: /add, /remove, /list, /check, /help")
             self.logger.info("🔄 Echo functionality enabled - all text messages will be echoed back")
             self.logger.info("💡 Use /help in Telegram for usage instructions")
             
@@ -171,6 +356,7 @@ async def main():
     print("   /add address - Add new address")
     print("   /remove address - Remove address from tracking")
     print("   /list - Show tracked addresses")
+    print("   /check address - Check positions for any address")
     print("   /help - Show help message")
     print("🔄 Echo functionality:")
     print("   Any text message will be echoed back")
