@@ -221,7 +221,7 @@ class TelegramNotifier:
         message += f"{action} {change.symbol} {side}\n"
         message += f"{details}\n"
         message += f"🕐 {change.timestamp.strftime('%H:%M:%S')}\n"
-        message += f"📊 <a href='https://hyperdash.xyz/address/{change.address}'>View on Hyperdash</a>"
+        message += f"📊 <a href='https://hyperdash.info/trader/{change.address}'>View on Hyperdash</a>"
         
         return message
     
@@ -311,7 +311,7 @@ class TelegramNotifier:
         message = f"🆕 <b>New Address Added to Tracking</b>\n\n"
         message += f"📍 <b>{label}</b>\n"
         message += f"📊 {address[:10]}...{address[-8:]}\n"
-        message += f"🔗 <a href='https://hyperdash.xyz/address/{address}'>View on Hyperdash</a>\n\n"
+        message += f"🔗 <a href='https://hyperdash.info/trader/{address}'>View on Hyperdash</a>\n\n"
         message += f"⚡ Now monitoring for position changes\n"
         message += f"🕐 {datetime.now().strftime('%H:%M:%S')}"
         
@@ -419,7 +419,7 @@ class TelegramNotifier:
                 f"✅ <b>Address Added Successfully!</b>\n\n"
                 f"📍 <b>{label}</b>\n"
                 f"📊 {address[:10]}...{address[-8:]}\n"
-                f"🔗 <a href='https://hyperdash.xyz/address/{address}'>View on Hyperdash</a>\n\n"
+                f"🔗 <a href='https://hyperdash.info/trader/{address}'>View on Hyperdash</a>\n\n"
                 f"⚡ Tracker will start monitoring this address in the next polling cycle (10 seconds)\n"
                 f"🔔 You'll receive alerts for position changes (increases, decreases, closures)"
             )
@@ -455,7 +455,7 @@ class TelegramNotifier:
                 
                 message += f"{source} <b>{label}</b>\n"
                 message += f"   📍 {address[:10]}...{address[-8:]}\n"
-                message += f"   🔗 <a href='https://hyperdash.xyz/address/{address}'>Hyperdash</a>\n\n"
+                message += f"   🔗 <a href='https://hyperdash.info/trader/{address}'>Hyperdash</a>\n\n"
             
             message += f"📈 Total: {total_addresses} addresses\n"
             message += f"📌 Dynamic: {len(self.dynamic_addresses)} addresses\n"
