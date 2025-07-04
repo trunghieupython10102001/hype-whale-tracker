@@ -46,24 +46,24 @@ class WhaleTrackerCommandHandler:
             return
         
         help_text = (
-            "🐋 <b>Whale Tracker Commands</b>\n\n"
-            "📌 <b>/add address:label</b>\n"
+            "🐋 Whale Tracker Commands\n\n"
+            "📌 /add address:label\n"
             "   Add new address with custom label\n"
             "   Example: /add 0x1234...5678:My Whale\n\n"
-            "📌 <b>/add address</b>\n"
+            "📌 /add address\n"
             "   Add new address with auto-generated label\n"
             "   Example: /add 0x1234...5678\n\n"
-            "🗑️ <b>/remove address</b>\n"
+            "🗑️ /remove address\n"
             "   Remove address from tracking\n"
             "   Example: /remove 0x1234...5678\n\n"
-            "📊 <b>/list</b>\n"
+            "📊 /list\n"
             "   Show all tracked addresses\n\n"
-            "🔍 <b>/check address</b>\n"
+            "🔍 /check address\n"
             "   Check all current positions for any address\n"
             "   Example: /check 0x1234...5678\n\n"
-            "❓ <b>/help</b>\n"
+            "❓ /help\n"
             "   Show this help message\n\n"
-            "📝 <b>Notes:</b>\n"
+            "📝 Notes:\n"
             "• Addresses must be 42 characters long\n"
             "• Addresses must start with 0x\n"
             "• Only actual position changes are alerted\n"
@@ -83,10 +83,10 @@ class WhaleTrackerCommandHandler:
         # Get the address from command arguments
         if not context.args:
             await update.message.reply_text(
-                "❌ <b>Usage:</b> /check address\n\n"
-                "📌 <b>Example:</b>\n"
+                "❌ Usage: /check address\n\n"
+                "📌 Example:\n"
                 "/check 0x1234567890123456789012345678901234567890\n\n"
-                "💡 <b>Tip:</b> Use the full 42-character address starting with 0x"
+                "💡 Tip: Use the full 42-character address starting with 0x"
             )
             return
         
@@ -95,12 +95,12 @@ class WhaleTrackerCommandHandler:
         # Validate address format
         if not self._validate_address(address):
             await update.message.reply_text(
-                "❌ <b>Invalid Address Format</b>\n\n"
+                "❌ Invalid Address Format\n\n"
                 "📝 Address must be:\n"
                 "• 42 characters long\n"
                 "• Start with 0x\n"
                 "• Contain only hexadecimal characters\n\n"
-                "📌 <b>Example:</b>\n"
+                "📌 Example:\n"
                 "0x1234567890123456789012345678901234567890"
             )
             return
@@ -122,9 +122,9 @@ class WhaleTrackerCommandHandler:
         except Exception as e:
             self.logger.error(f"Error checking positions for {address}: {e}")
             await loading_message.edit_text(
-                f"❌ <b>Error checking positions</b>\n\n"
+                f"❌ Error checking positions\n\n"
                 f"Failed to fetch data for address:\n"
-                f"<code>{address[:10]}...{address[-8:]}</code>\n\n"
+                f"{address[:10]}...{address[-8:]}\n\n"
                 f"This could be due to:\n"
                 f"• Network connectivity issues\n"
                 f"• API rate limiting\n"
@@ -230,14 +230,14 @@ class WhaleTrackerCommandHandler:
         address_label = labels.get(address, f"{address[:6]}...{address[-4:]}")
         
         # Build response message
-        message = f"📊 <b>Position Check Results</b>\n\n"
-        message += f"📍 <b>{address_label}</b>\n"
-        message += f"🔗 <a href='https://hyperdash.info/trader/{address}'>View on Hyperdash</a>\n\n"
+        message = f"📊 Position Check Results\n\n"
+        message += f"📍 {address_label}\n"
+        message += f"🔗 View on Hyperdash: https://hyperdash.info/trader/{address}\n\n"
         
         if not positions:
-            message += f"❌ <b>No Open Positions</b>\n\n"
+            message += f"❌ No Open Positions\n\n"
             message += f"This address currently has no open positions on Hyperliquid.\n\n"
-            message += f"💡 <b>Note:</b> This could mean:\n"
+            message += f"💡 Note: This could mean:\n"
             message += f"• Address has no trading activity\n"
             message += f"• All positions have been closed\n"
             message += f"• Address is not active on Hyperliquid"
@@ -246,7 +246,7 @@ class WhaleTrackerCommandHandler:
             total_value = sum(pos['market_value'] for pos in positions.values())
             total_pnl = sum(pos['unrealized_pnl'] for pos in positions.values())
             
-            message += f"✅ <b>{len(positions)} Open Position(s)</b>\n"
+            message += f"✅ {len(positions)} Open Position(s)\n"
             message += f"💰 Total Value: ${total_value:,.2f}\n"
             message += f"📈 Total PnL: ${total_pnl:+,.2f}\n\n"
             
@@ -257,7 +257,7 @@ class WhaleTrackerCommandHandler:
             for i, pos in enumerate(sorted_positions, 1):
                 side_emoji = "🟢" if pos['side'] == 'long' else "🔴"
                 
-                message += f"{side_emoji} <b>{pos['symbol']} {pos['side'].upper()}</b>\n"
+                message += f"{side_emoji} {pos['symbol']} {pos['side'].upper()}\n"
                 message += f"📦 Size: {pos['size']:.4f}\n"
                 message += f"💵 Entry: ${pos['entry_price']:,.2f}\n"
                 message += f"💰 Value: ${pos['market_value']:,.2f}\n"

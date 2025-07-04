@@ -152,8 +152,8 @@ class TelegramNotifier:
             return False
         
         try:
-            if parse_mode is None:
-                parse_mode = ParseMode.HTML if TELEGRAM_AVAILABLE else None
+            # Use plain text instead of HTML formatting
+            parse_mode = None
             
             # Add timeout to message sending
             await asyncio.wait_for(
@@ -217,11 +217,11 @@ class TelegramNotifier:
             side = ""
         
         # Build message with Hyperdash link
-        message = f"{emoji} <b>{address_label}</b>\n"
+        message = f"{emoji} {address_label}\n"
         message += f"{action} {change.symbol} {side}\n"
         message += f"{details}\n"
         message += f"🕐 {change.timestamp.strftime('%H:%M:%S')}\n"
-        message += f"📊 <a href='https://hyperdash.info/trader/{change.address}'>View on Hyperdash</a>"
+        message += f"📊 View on Hyperdash: https://hyperdash.info/trader/{change.address}"
         
         return message
     
@@ -258,7 +258,7 @@ class TelegramNotifier:
         if not self.config.TELEGRAM_SEND_SUMMARY:
             return True
         
-        message = f"📊 <b>Daily Whale Activity Summary</b>\n"
+        message = f"📊 Daily Whale Activity Summary\n"
         message += f"📅 {datetime.now().strftime('%Y-%m-%d')}\n\n"
         
         # Add summary statistics
@@ -272,7 +272,7 @@ class TelegramNotifier:
         
         # Add top activities if available
         if 'top_activities' in summary_data:
-            message += f"🔥 <b>Top Activities:</b>\n"
+            message += f"🔥 Top Activities:\n"
             for activity in summary_data['top_activities'][:5]:  # Top 5
                 message += f"• {activity}\n"
         
@@ -280,7 +280,7 @@ class TelegramNotifier:
     
     async def send_error_alert(self, error_message: str) -> bool:
         """Send an error alert"""
-        message = f"⚠️ <b>Whale Tracker Error</b>\n\n"
+        message = f"⚠️ Whale Tracker Error\n\n"
         message += f"❌ {error_message}\n"
         message += f"🕐 {datetime.now().strftime('%H:%M:%S')}\n\n"
         message += "Please check the logs for more details."
@@ -289,7 +289,7 @@ class TelegramNotifier:
     
     async def send_startup_message(self) -> bool:
         """Send a startup notification"""
-        message = f"🚀 <b>Whale Tracker Started</b>\n\n"
+        message = f"🚀 Whale Tracker Started\n\n"
         message += f"📡 Monitoring {len(self.config.TRACKED_ADDRESSES)} addresses\n"
         message += f"⏱️ Polling every {self.config.POLLING_INTERVAL} seconds\n"
         message += f"💰 Min position: ${self.config.MIN_POSITION_SIZE:,}\n"
@@ -300,7 +300,7 @@ class TelegramNotifier:
     
     async def send_shutdown_message(self) -> bool:
         """Send a shutdown notification"""
-        message = f"🛑 <b>Whale Tracker Stopped</b>\n\n"
+        message = f"🛑 Whale Tracker Stopped\n\n"
         message += f"📊 Monitoring session ended\n"
         message += f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         
@@ -308,10 +308,10 @@ class TelegramNotifier:
     
     async def send_address_added_notification(self, address: str, label: str) -> bool:
         """Send notification when a new address is added via Telegram"""
-        message = f"🆕 <b>New Address Added to Tracking</b>\n\n"
-        message += f"📍 <b>{label}</b>\n"
+        message = f"🆕 New Address Added to Tracking\n\n"
+        message += f"📍 {label}\n"
         message += f"📊 {address[:10]}...{address[-8:]}\n"
-        message += f"🔗 <a href='https://hyperdash.info/trader/{address}'>View on Hyperdash</a>\n\n"
+        message += f"🔗 View on Hyperdash: https://hyperdash.info/trader/{address}\n\n"
         message += f"⚡ Now monitoring for position changes\n"
         message += f"🕐 {datetime.now().strftime('%H:%M:%S')}"
         
@@ -319,8 +319,8 @@ class TelegramNotifier:
     
     async def send_address_removed_notification(self, address: str, label: str) -> bool:
         """Send notification when an address is removed"""
-        message = f"🗑️ <b>Address Removed from Tracking</b>\n\n"
-        message += f"📍 <b>{label}</b>\n"
+        message = f"🗑️ Address Removed from Tracking\n\n"
+        message += f"📍 {label}\n"
         message += f"📊 {address[:10]}...{address[-8:]}\n\n"
         message += f"🛑 No longer monitoring this address\n"
         message += f"🕐 {datetime.now().strftime('%H:%M:%S')}"
@@ -416,10 +416,10 @@ class TelegramNotifier:
             
             # Send confirmation reply
             await update.message.reply_text(
-                f"✅ <b>Address Added Successfully!</b>\n\n"
-                f"📍 <b>{label}</b>\n"
+                f"✅ Address Added Successfully!\n\n"
+                f"📍 {label}\n"
                 f"📊 {address[:10]}...{address[-8:]}\n"
-                f"🔗 <a href='https://hyperdash.info/trader/{address}'>View on Hyperdash</a>\n\n"
+                f"🔗 View on Hyperdash: https://hyperdash.info/trader/{address}\n\n"
                 f"⚡ Tracker will start monitoring this address in the next polling cycle (10 seconds)\n"
                 f"🔔 You'll receive alerts for position changes (increases, decreases, closures)"
             )
@@ -441,25 +441,32 @@ class TelegramNotifier:
                 await update.message.reply_text("❌ Unauthorized access")
                 return
             
-            message = "📊 <b>Tracked Addresses:</b>\n\n"
+            message = "📊 Tracked Addresses:\n\n"
             
             # Get all labels (static + dynamic)
             all_labels = self.config.get_address_labels()
             all_labels.update(self.dynamic_addresses)
             
-            total_addresses = len(self.config.TRACKED_ADDRESSES)
+            # Get all unique addresses being tracked
+            all_tracked_addresses = self.get_all_tracked_addresses()
             
-            for i, address in enumerate(self.config.TRACKED_ADDRESSES, 1):
+            # Count static addresses (those NOT in dynamic_addresses)
+            static_count = 0
+            for address in all_tracked_addresses:
+                if address not in self.dynamic_addresses:
+                    static_count += 1
+            
+            for i, address in enumerate(all_tracked_addresses, 1):
                 label = all_labels.get(address, f"{address[:6]}...{address[-4:]}")
                 source = "📌" if address in self.dynamic_addresses else "⚙️"
                 
-                message += f"{source} <b>{label}</b>\n"
+                message += f"{source} {label}\n"
                 message += f"   📍 {address[:10]}...{address[-8:]}\n"
-                message += f"   🔗 <a href='https://hyperdash.info/trader/{address}'>Hyperdash</a>\n\n"
+                message += f"   🔗 https://hyperdash.info/trader/{address}\n\n"
             
-            message += f"📈 Total: {total_addresses} addresses\n"
+            message += f"📈 Total: {len(all_tracked_addresses)} addresses\n"
             message += f"📌 Dynamic: {len(self.dynamic_addresses)} addresses\n"
-            message += f"⚙️ Static: {total_addresses - len(self.dynamic_addresses)} addresses"
+            message += f"⚙️ Static: {static_count} addresses"
             
             await update.message.reply_text(message)
             
@@ -515,8 +522,8 @@ class TelegramNotifier:
             
             # Send confirmation
             await update.message.reply_text(
-                f"✅ <b>Address Removed Successfully!</b>\n\n"
-                f"📍 <b>{label}</b>\n"
+                f"✅ Address Removed Successfully!\n\n"
+                f"📍 {label}\n"
                 f"📊 {address[:10]}...{address[-8:]}\n\n"
                 f"🛑 No longer monitoring this address"
             )
