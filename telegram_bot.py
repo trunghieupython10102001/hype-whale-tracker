@@ -368,10 +368,6 @@ class TelegramNotifier:
     async def handle_add_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /add command to add new addresses"""
         try:
-            # Check if user is authorized (from correct chat)
-            if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
-                await update.message.reply_text("❌ Unauthorized access")
-                return
             
             if not context.args:
                 await update.message.reply_text(
@@ -427,7 +423,10 @@ class TelegramNotifier:
             # Send notification to main chat about new address
             await self.send_address_added_notification(address, label)
             
-            self.logger.info(f"Added new address via Telegram: {address} ({label})")
+            # Log the action with user info
+            username = update.message.from_user.username or "Unknown"
+            user_id = update.message.from_user.id
+            self.logger.info(f"Address added by @{username} (ID: {user_id}): {address} ({label})")
             
         except Exception as e:
             self.logger.error(f"Error handling add command: {e}")
@@ -436,10 +435,6 @@ class TelegramNotifier:
     async def handle_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /list command to show tracked addresses"""
         try:
-            # Check if user is authorized
-            if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
-                await update.message.reply_text("❌ Unauthorized access")
-                return
             
             message = "📊 Tracked Addresses:\n\n"
             
@@ -470,6 +465,11 @@ class TelegramNotifier:
             
             await update.message.reply_text(message)
             
+            # Log the action with user info
+            username = update.message.from_user.username or "Unknown"
+            user_id = update.message.from_user.id
+            self.logger.info(f"List command used by @{username} (ID: {user_id}) - {len(all_tracked_addresses)} addresses shown")
+            
         except Exception as e:
             self.logger.error(f"Error handling list command: {e}")
             await update.message.reply_text("❌ Error processing command")
@@ -477,10 +477,6 @@ class TelegramNotifier:
     async def handle_remove_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /remove command to remove addresses"""
         try:
-            # Check if user is authorized
-            if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
-                await update.message.reply_text("❌ Unauthorized access")
-                return
             
             if not context.args:
                 await update.message.reply_text(
@@ -531,7 +527,10 @@ class TelegramNotifier:
             # Send notification to main chat
             await self.send_address_removed_notification(address, label)
             
-            self.logger.info(f"Removed address via Telegram: {address} ({label})")
+            # Log the action with user info
+            username = update.message.from_user.username or "Unknown"
+            user_id = update.message.from_user.id
+            self.logger.info(f"Address removed by @{username} (ID: {user_id}): {address} ({label})")
             
         except Exception as e:
             self.logger.error(f"Error handling remove command: {e}")
