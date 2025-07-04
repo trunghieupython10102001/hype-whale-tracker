@@ -7,7 +7,7 @@ Run this alongside the main tracker to handle /add and /list commands
 import asyncio
 import logging
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telegram_bot import TelegramNotifier
 from config import Config
 
@@ -70,6 +70,25 @@ class WhaleTrackerCommandHandler:
         
         await update.message.reply_text(help_text)
     
+    async def echo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Echo any text message back to the user"""
+        # Check if message is from authorized chat
+        if str(update.message.chat_id) != self.config.TELEGRAM_CHAT_ID:
+            await update.message.reply_text("❌ Unauthorized access")
+            return
+        
+        # Get the original message text
+        original_text = update.message.text
+        
+        # Echo the message back with a small indicator
+        echo_text = f"🔄 Echo: {original_text}"
+        
+        # Send the echo message back
+        await update.message.reply_text(echo_text)
+        
+        # Log the echo action
+        self.logger.info(f"Echoed message: {original_text}")
+    
     async def start_command_handler(self):
         """Start the command handler"""
         try:
@@ -87,8 +106,13 @@ class WhaleTrackerCommandHandler:
             self.application.add_handler(CommandHandler("help", self.help_command))
             self.application.add_handler(CommandHandler("start", self.help_command))
             
+            # Add message handler for echo functionality
+            # This handles all text messages that are not commands
+            self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo_message))
+            
             self.logger.info("🤖 Telegram command handler started")
             self.logger.info("📋 Available commands: /add, /remove, /list, /help")
+            self.logger.info("🔄 Echo functionality enabled - all text messages will be echoed back")
             self.logger.info("💡 Use /help in Telegram for usage instructions")
             
             # Start the bot with better error handling
@@ -148,6 +172,8 @@ async def main():
     print("   /remove address - Remove address from tracking")
     print("   /list - Show tracked addresses")
     print("   /help - Show help message")
+    print("🔄 Echo functionality:")
+    print("   Any text message will be echoed back")
     print("=" * 60)
     print("💡 Run this alongside your main whale tracker")
     print("🔄 Starting command handler...")
