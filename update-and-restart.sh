@@ -66,7 +66,7 @@ fi
 
 # Stop existing containers
 print_status "Stopping existing Docker containers..."
-if docker-compose down; then
+if docker compose down; then
     print_success "Containers stopped successfully"
 else
     print_warning "Failed to stop containers (they may not be running)"
@@ -74,14 +74,14 @@ fi
 
 # Remove old images to force rebuild
 print_status "Removing old Docker images to force rebuild..."
-docker-compose build --no-cache || {
+docker compose build --no-cache || {
     print_warning "Failed to build with --no-cache, trying regular build..."
-    docker-compose build
+    docker compose build
 }
 
 # Start services
 print_status "Starting updated services..."
-if docker-compose up -d; then
+if docker compose up -d; then
     print_success "Services started successfully!"
 else
     print_error "Failed to start services"
@@ -94,27 +94,27 @@ sleep 10
 
 # Check service status
 print_status "Checking service status..."
-docker-compose ps
+docker compose ps
 
 # Show recent logs
 print_status "Showing recent logs (last 20 lines)..."
 echo ""
 echo "🐋 WHALE TRACKER LOGS:"
 echo "====================="
-docker-compose logs --tail=20 whale-tracker
+docker compose logs --tail=20 whale-tracker
 
 echo ""
 echo "🤖 COMMAND HANDLER LOGS:"
 echo "========================"
-docker-compose logs --tail=20 whale-commands
+docker compose logs --tail=20 whale-commands
 
 echo ""
 print_success "✅ Update and restart completed successfully!"
 echo ""
 print_status "📋 Useful commands:"
-echo "  • View live logs: docker-compose logs -f"
-echo "  • Check status: docker-compose ps"
-echo "  • Stop services: docker-compose down"
-echo "  • Restart: docker-compose restart"
+echo "  • View live logs: docker compose logs -f"
+echo "  • Check status: docker compose ps"
+echo "  • Stop services: docker compose down"
+echo "  • Restart: docker compose restart"
 echo ""
 print_status "🔍 Monitor whale alerts in your Telegram bot!" 

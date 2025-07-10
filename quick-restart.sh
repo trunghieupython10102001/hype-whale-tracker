@@ -35,7 +35,7 @@ fi
 
 # Restart services
 print_status "Restarting Docker services..."
-if docker-compose restart; then
+if docker compose restart; then
     print_success "Services restarted successfully!"
 else
     print_error "Failed to restart services"
@@ -48,7 +48,7 @@ sleep 5
 
 # Check service status
 print_status "Checking service status..."
-docker-compose ps
+docker compose ps
 
 print_success "✅ Quick restart completed!"
 print_status "🔍 Monitor whale alerts in your Telegram bot!" 

@@ -116,13 +116,13 @@ nano ~/whale-tracker/config.py
 cd ~/whale-tracker
 
 # Build and start
-docker-compose up -d
+docker compose up -d
 
 # Check if running
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ## 📊 Step 7: Monitor and Manage
@@ -130,34 +130,34 @@ docker-compose logs -f
 ### Useful Commands:
 ```bash
 # Check status
-docker-compose ps
+docker compose ps
 
 # View live logs
-docker-compose logs -f
+docker compose logs -f
 
 # Restart service
-docker-compose restart
+docker compose restart
 
 # Stop service
-docker-compose down
+docker compose down
 
 # Update and restart
-docker-compose build && docker-compose up -d
+docker compose build && docker compose up -d
 
 # View container resource usage
 docker stats
 
 # Access container shell (for debugging)
-docker-compose exec whale-tracker bash
+docker compose exec whale-tracker bash
 ```
 
 ### Check Application Health:
 ```bash
 # Test network connectivity
-docker-compose exec whale-tracker python3 main.py --test-network
+docker compose exec whale-tracker python3 main.py --test-network
 
 # Run in test mode
-docker-compose exec whale-tracker python3 main.py --test-mode
+docker compose exec whale-tracker python3 main.py --test-mode
 ```
 
 ## 🔒 Step 8: Security Best Practices
@@ -215,8 +215,8 @@ crontab -e
 ```bash
 cd ~/whale-tracker
 git pull origin main
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
 ```
 
 ## 🛠️ Troubleshooting
@@ -225,7 +225,7 @@ docker-compose up -d
 
 1. **Container won't start**:
    ```bash
-   docker-compose logs
+   docker compose logs
    # Check for configuration errors
    ```
 
@@ -241,22 +241,22 @@ docker-compose up -d
    docker system prune -a
    
    # Clean up logs
-   docker-compose down
+   docker compose down
    rm -rf ~/whale-tracker/logs/*
-   docker-compose up -d
+   docker compose up -d
    ```
 
 4. **Network connectivity issues**:
    ```bash
    # Test from inside container
-   docker-compose exec whale-tracker curl -I https://api.hyperliquid.xyz
-   docker-compose exec whale-tracker curl -I https://api.telegram.org
+   docker compose exec whale-tracker curl -I https://api.hyperliquid.xyz
+   docker compose exec whale-tracker curl -I https://api.telegram.org
    ```
 
 ### Emergency Recovery:
 ```bash
 # Stop everything
-docker-compose down
+docker compose down
 
 # Remove containers and images
 docker system prune -a
@@ -290,7 +290,7 @@ docker system prune -a
 ## 📞 Support
 
 If you encounter issues:
-1. Check the logs: `docker-compose logs -f`
+1. Check the logs: `docker compose logs -f`
 2. Test connectivity: `python3 main.py --test-network`
 3. Verify configuration: Check your `.env` file
 4. Review this guide for missed steps

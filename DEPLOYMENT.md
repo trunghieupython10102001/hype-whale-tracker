@@ -97,16 +97,16 @@ After deployment, use these commands to monitor your application:
 
 ```bash
 # View live logs
-docker-compose logs -f
+docker compose logs -f
 
 # Check service status  
-docker-compose ps
+docker compose ps
 
 # Restart specific service
-docker-compose restart whale-tracker
+docker compose restart whale-tracker
 
 # Stop all services
-docker-compose down
+docker compose down
 ```
 
 ### Production Monitoring
@@ -115,13 +115,13 @@ For production deployments:
 
 ```bash
 # View production logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml logs -f
 
 # Check production status
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Restart production services
-docker-compose -f docker-compose.prod.yml restart
+docker compose -f docker-compose.prod.yml restart
 ```
 
 ## 🔄 Typical Workflow
@@ -156,25 +156,25 @@ If deployment fails:
 
 1. **Check service status:**
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 2. **View error logs:**
    ```bash
-   docker-compose logs --tail=50
+   docker compose logs --tail=50
    ```
 
 3. **Restore from backup:**
    ```bash
    # Stop services
-   docker-compose down
+   docker compose down
    
    # Restore data
    rm -rf data/
    cp -r data_backup_YYYYMMDD_HHMMSS/ data/
    
    # Restart services
-   docker-compose up -d
+   docker compose up -d
    ```
 
 4. **Contact support** if issues persist 

@@ -66,11 +66,11 @@ fi
 
 # Stop existing containers using production config
 print_status "Stopping existing production containers..."
-docker-compose -f docker-compose.prod.yml down || print_warning "Containers may not be running"
+docker compose -f docker-compose.prod.yml down || print_warning "Containers may not be running"
 
 # Build new images
 print_status "Building production Docker images..."
-if docker-compose -f docker-compose.prod.yml build --no-cache; then
+if docker compose -f docker-compose.prod.yml build --no-cache; then
     print_success "Images built successfully"
 else
     print_error "Failed to build Docker images"
@@ -79,7 +79,7 @@ fi
 
 # Start production services
 print_status "Starting production services..."
-if docker-compose -f docker-compose.prod.yml up -d; then
+if docker compose -f docker-compose.prod.yml up -d; then
     print_success "Production services started successfully!"
 else
     print_error "Failed to start production services"
@@ -92,36 +92,36 @@ sleep 15
 
 # Check service status
 print_status "Checking production service status..."
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Show recent logs
 print_status "Showing recent production logs..."
 echo ""
 echo "🐋 WHALE TRACKER PRODUCTION LOGS:"
 echo "================================="
-docker-compose -f docker-compose.prod.yml logs --tail=20 whale-tracker
+docker compose -f docker-compose.prod.yml logs --tail=20 whale-tracker
 
 echo ""
 echo "🤖 COMMAND HANDLER PRODUCTION LOGS:"
 echo "==================================="
-docker-compose -f docker-compose.prod.yml logs --tail=20 whale-commands
+docker compose -f docker-compose.prod.yml logs --tail=20 whale-commands
 
 # Health check
 print_status "Performing health check..."
 sleep 5
-if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+if docker compose -f docker-compose.prod.yml ps | grep -q "Up"; then
     print_success "✅ Production deployment completed successfully!"
 else
     print_error "❌ Some services may not be running properly"
-    docker-compose -f docker-compose.prod.yml ps
+    docker compose -f docker-compose.prod.yml ps
 fi
 
 echo ""
 print_status "📋 Production management commands:"
-echo "  • View live logs: docker-compose -f docker-compose.prod.yml logs -f"
-echo "  • Check status: docker-compose -f docker-compose.prod.yml ps"
-echo "  • Stop services: docker-compose -f docker-compose.prod.yml down"
-echo "  • Restart: docker-compose -f docker-compose.prod.yml restart"
+echo "  • View live logs: docker compose -f docker-compose.prod.yml logs -f"
+echo "  • Check status: docker compose -f docker-compose.prod.yml ps"
+echo "  • Stop services: docker compose -f docker-compose.prod.yml down"
+echo "  • Restart: docker compose -f docker-compose.prod.yml restart"
 echo ""
 print_status "🔍 Monitor whale alerts in your Telegram bot!"
 print_warning "🛡️  Remember to monitor server resources and logs in production" 

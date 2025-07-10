@@ -91,17 +91,17 @@ while [[ $# -gt 0 ]]; do
             ;;
         --stop)
             echo "🛑 Stopping whale tracker..."
-            docker-compose $COMPOSE_FILES down
+            docker compose $COMPOSE_FILES down
             exit 0
             ;;
         --logs)
             echo "📄 Showing logs..."
-            docker-compose $COMPOSE_FILES logs -f
+            docker compose $COMPOSE_FILES logs -f
             exit 0
             ;;
         --status)
             echo "📊 Service status:"
-            docker-compose $COMPOSE_FILES ps
+            docker compose $COMPOSE_FILES ps
             exit 0
             ;;
         -h|--help)
@@ -139,10 +139,10 @@ echo "   🤖 whale-commands (Telegram commands)"
 echo ""
 
 # Build if needed
-docker-compose $COMPOSE_FILES build
+docker compose $COMPOSE_FILES build
 
 # Start services
-docker-compose $COMPOSE_FILES up $DETACHED
+docker compose $COMPOSE_FILES up $DETACHED
 
 if [ -n "$DETACHED" ]; then
     echo "✅ Services started in background!"
