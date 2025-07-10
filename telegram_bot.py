@@ -6,6 +6,7 @@ import asyncio
 import logging
 import json
 import os
+import random
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -451,6 +452,55 @@ class TelegramNotifier:
         except ValueError:
             return False
     
+    def _generate_unique_alias(self) -> str:
+        """Generate a unique random alias for an address"""
+        
+        # Lists of adjectives and nouns for generating memorable aliases
+        adjectives = [
+            "Swift", "Bold", "Silent", "Golden", "Silver", "Bright", "Dark", "Deep",
+            "Sharp", "Quick", "Smart", "Wild", "Calm", "Strong", "Fast", "Cool",
+            "Hot", "Blue", "Red", "Green", "Purple", "Orange", "Pink", "Black",
+            "White", "Gray", "Crypto", "Digital", "Phantom", "Shadow", "Lightning",
+            "Thunder", "Storm", "Fire", "Ice", "Wind", "Ocean", "Mountain", "River",
+            "Diamond", "Steel", "Iron", "Jade", "Ruby", "Emerald", "Sapphire", "Pearl"
+        ]
+        
+        nouns = [
+            "Whale", "Shark", "Eagle", "Tiger", "Lion", "Wolf", "Fox", "Bear",
+            "Dragon", "Phoenix", "Falcon", "Hawk", "Raven", "Panther", "Cobra",
+            "Viper", "Bull", "Stallion", "Mustang", "Jaguar", "Leopard", "Cheetah",
+            "Trader", "Investor", "Player", "Master", "Lord", "King", "Queen",
+            "Knight", "Warrior", "Hunter", "Ninja", "Samurai", "Guardian", "Defender",
+            "Champion", "Legend", "Hero", "Giant", "Titan", "Goliath", "Atlas",
+            "Rocket", "Lightning", "Thunder", "Storm", "Comet", "Star", "Galaxy",
+            "Nebula", "Cosmos", "Universe", "Spirit", "Ghost", "Phantom", "Specter"
+        ]
+        
+        # Generate aliases until we find a unique one
+        max_attempts = 100
+        for _ in range(max_attempts):
+            adjective = random.choice(adjectives)
+            noun = random.choice(nouns)
+            alias = f"{adjective} {noun}"
+            
+            # Check if this alias is already used
+            if alias not in self.dynamic_addresses.values():
+                return alias
+        
+        # Fallback: use random numbers if we can't find a unique combination
+        for attempt in range(max_attempts):
+            adjective = random.choice(adjectives)
+            noun = random.choice(nouns)
+            number = random.randint(10, 99)
+            alias = f"{adjective} {noun} {number}"
+            
+            if alias not in self.dynamic_addresses.values():
+                return alias
+        
+        # Ultimate fallback: use timestamp
+        timestamp = datetime.now().strftime("%H%M%S")
+        return f"Trader {timestamp}"
+    
     def add_user(self, user_id: int, username: str = None, first_name: str = None):
         """Add a new user to the broadcast list"""
         user_key = str(user_id)
@@ -491,7 +541,7 @@ class TelegramNotifier:
                 await update.message.reply_text(
                     "📋 Usage: /add address:label or /add address\n"
                     "Example: /add 0x1234...5678:My Whale\n"
-                    "Example: /add 0x1234...5678"
+                    "Example: /add 0x1234...5678 (generates random alias like 'Swift Tiger')"
                 )
                 return
             
@@ -504,7 +554,8 @@ class TelegramNotifier:
                 label = label.strip()
             else:
                 address = arg.strip()
-                label = f"{address[:6]}...{address[-4:]}"
+                # Generate a unique random alias instead of using address format
+                label = self._generate_unique_alias()
             
             # Validate address
             if not self._validate_address(address):

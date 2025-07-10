@@ -44,9 +44,10 @@ class WhaleTrackerCommandHandler:
             await update.message.reply_text(
                 "📊 No Tracked Addresses\n\n"
                 "❌ You haven't added any addresses to track yet.\n\n"
-                "💡 Use /add address:label to start tracking whale movements!\n\n"
-                "📌 Example:\n"
-                "/add 0x1234567890123456789012345678901234567890:My Whale"
+                "💡 Use /add address:label or /add address to start tracking!\n\n"
+                "📌 Examples:\n"
+                "/add 0x1234567890123456789012345678901234567890:My Whale\n"
+                "/add 0x1234567890123456789012345678901234567890 (auto-generates alias like 'Golden Eagle')"
             )
             return
         
@@ -64,10 +65,10 @@ class WhaleTrackerCommandHandler:
             message += f"   📍 {address[:10]}...{address[-8:]}\n"
             message += f"   🔗 https://hyperdash.info/trader/{address}\n\n"
             
-            # Create inline keyboard buttons for this address
+            # Create inline keyboard buttons for this address with alias names
             button_row = [
-                InlineKeyboardButton("🔍 Check", callback_data=f"check_{address}"),
-                InlineKeyboardButton("🗑️ Remove", callback_data=f"remove_{address}")
+                InlineKeyboardButton(f"🔍 Check {label}", callback_data=f"check_{address}"),
+                InlineKeyboardButton(f"🗑️ Remove {label}", callback_data=f"remove_{address}")
             ]
             keyboards.append(button_row)
         
@@ -105,8 +106,8 @@ class WhaleTrackerCommandHandler:
             "   Add new address with custom label\n"
             "   Example: /add 0x1234...5678:My Whale\n\n"
             "📌 /add address\n"
-            "   Add new address with auto-generated label\n"
-            "   Example: /add 0x1234...5678\n\n"
+            "   Add new address with random unique alias\n"
+            "   Example: /add 0x1234...5678 (generates alias like 'Swift Whale')\n\n"
             "🗑️ /remove address\n"
             "   Remove address from tracking\n"
             "   Example: /remove 0x1234...5678\n\n"
@@ -145,7 +146,7 @@ class WhaleTrackerCommandHandler:
             "📊 /list - Show tracked addresses with interactive buttons\n"
             "❓ /help - Show all commands\n\n"
             "💡 Try: /check 0x[address] to see someone's positions!\n"
-            "💡 Or: /add 0x[address]:Label to start tracking!\n\n"
+            "💡 Or: /add 0x[address]:Label or /add 0x[address] (auto-alias)!\n\n"
             "📊 Built for tracking whale movements on Hyperliquid DEX\n\n"
             "🔔 You'll now receive whale movement alerts!"
         )
@@ -540,8 +541,8 @@ async def main():
     print("=" * 60)
     print("📋 This handler enables these Telegram commands:")
     print("🌍 All commands (available to everyone):")
-    print("   /add address:label - Add new address with label")
-    print("   /add address - Add new address")
+    print("   /add address:label - Add new address with custom label")
+    print("   /add address - Add new address with random unique alias")
     print("   /remove address - Remove address from tracking")
     print("   /list - Show tracked addresses with interactive buttons")
     print("   /check address - Check positions for any address")
