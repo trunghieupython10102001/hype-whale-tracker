@@ -6,8 +6,8 @@ Run this alongside the main tracker to handle /add and /list commands
 
 import asyncio
 import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from telegram_bot import TelegramNotifier
 from config import Config
 
@@ -32,8 +32,61 @@ class WhaleTrackerCommandHandler:
         await self.notifier.handle_add_command(update, context)
     
     async def list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /list command - available to everyone"""
-        await self.notifier.handle_list_command(update, context)
+        """Handle /list command with interactive buttons - available to everyone"""
+        # Register user for broadcasts
+        user = update.message.from_user
+        self.notifier.add_user(user.id, user.username, user.first_name)
+        
+        # Get all tracked addresses
+        all_tracked_addresses = self.notifier.get_all_tracked_addresses()
+        
+        if not all_tracked_addresses:
+            await update.message.reply_text(
+                "📊 No Tracked Addresses\n\n"
+                "❌ You haven't added any addresses to track yet.\n\n"
+                "💡 Use /add address:label to start tracking whale movements!\n\n"
+                "📌 Example:\n"
+                "/add 0x1234567890123456789012345678901234567890:My Whale"
+            )
+            return
+        
+        # Build message and inline keyboard
+        message = "📊 Tracked Addresses\n\n"
+        
+        keyboards = []
+        for i, address in enumerate(all_tracked_addresses, 1):
+            # Get label for this address
+            labels = self.notifier.get_all_address_labels()
+            label = labels.get(address, f"{address[:6]}...{address[-4:]}")
+            
+            # Add address info to message
+            message += f"📌 {label}\n"
+            message += f"   📍 {address[:10]}...{address[-8:]}\n"
+            message += f"   🔗 https://hyperdash.info/trader/{address}\n\n"
+            
+            # Create inline keyboard buttons for this address
+            button_row = [
+                InlineKeyboardButton("🔍 Check", callback_data=f"check_{address}"),
+                InlineKeyboardButton("🗑️ Remove", callback_data=f"remove_{address}")
+            ]
+            keyboards.append(button_row)
+        
+        # Add summary
+        message += f"📈 Total: {len(all_tracked_addresses)} addresses\n"
+        message += f"📌 Dynamic: {len(self.notifier.dynamic_addresses)} addresses\n"
+        message += f"⚙️ Static: 0 addresses\n\n"
+        message += "💡 Use buttons below to check positions or remove addresses"
+        
+        # Create inline keyboard markup
+        reply_markup = InlineKeyboardMarkup(keyboards)
+        
+        # Send message with buttons
+        await update.message.reply_text(message, reply_markup=reply_markup)
+        
+        # Log the action
+        username = update.message.from_user.username or "Unknown"
+        user_id = update.message.from_user.id
+        self.logger.info(f"Interactive /list used by @{username} (ID: {user_id}) - {len(all_tracked_addresses)} addresses shown")
     
     async def remove_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /remove command - available to everyone"""
@@ -58,7 +111,8 @@ class WhaleTrackerCommandHandler:
             "   Remove address from tracking\n"
             "   Example: /remove 0x1234...5678\n\n"
             "📊 /list\n"
-            "   Show all tracked addresses\n\n"
+            "   Show all tracked addresses with interactive buttons\n"
+            "   Use 🔍 Check to see positions or 🗑️ Remove to stop tracking\n\n"
             "🔍 /check address\n"
             "   Check current positions for any address\n"
             "   Example: /check 0x1234...5678\n\n"
@@ -88,7 +142,7 @@ class WhaleTrackerCommandHandler:
             "🌍 Available Commands:\n"
             "📌 /add address:label - Add addresses to track\n"
             "🔍 /check address - Check positions for any address\n"
-            "📊 /list - Show tracked addresses\n"
+            "📊 /list - Show tracked addresses with interactive buttons\n"
             "❓ /help - Show all commands\n\n"
             "💡 Try: /check 0x[address] to see someone's positions!\n"
             "💡 Or: /add 0x[address]:Label to start tracking!\n\n"
@@ -164,6 +218,101 @@ class WhaleTrackerCommandHandler:
                 f"• Invalid address (not on Hyperliquid)\n"
                 f"• Temporary API issues"
             )
+    
+    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle button press callbacks"""
+        query = update.callback_query
+        
+        # Always answer the callback query to remove the loading spinner
+        await query.answer()
+        
+        # Register user for broadcasts
+        user = query.from_user
+        self.notifier.add_user(user.id, user.username, user.first_name)
+        
+        # Parse the callback data
+        callback_data = query.data
+        
+        if callback_data.startswith("check_"):
+            await self._handle_check_button(query, callback_data)
+        elif callback_data.startswith("remove_"):
+            await self._handle_remove_button(query, callback_data)
+        else:
+            await query.edit_message_text("❌ Unknown button action")
+    
+    async def _handle_check_button(self, query, callback_data: str):
+        """Handle check button press"""
+        # Extract address from callback data
+        address = callback_data.replace("check_", "")
+        
+        # Show loading message
+        await query.edit_message_text("🔍 Checking positions for address...\n\n⏳ Please wait...")
+        
+        try:
+            # Get positions for the address
+            positions = await self._get_address_positions(address)
+            
+            # Format and send response
+            response = self._format_positions_response(address, positions)
+            await query.edit_message_text(response)
+            
+            # Log the action
+            username = query.from_user.username or "Unknown"
+            user_id = query.from_user.id
+            self.logger.info(f"Check button used by @{username} (ID: {user_id}) for address: {address[:10]}... ({len(positions)} positions)")
+            
+        except Exception as e:
+            self.logger.error(f"Error checking positions via button for {address}: {e}")
+            await query.edit_message_text(
+                f"❌ Error checking positions\n\n"
+                f"Failed to fetch data for address:\n"
+                f"{address[:10]}...{address[-8:]}\n\n"
+                f"This could be due to:\n"
+                f"• Network connectivity issues\n"
+                f"• API rate limiting\n"
+                f"• Invalid address (not on Hyperliquid)\n"
+                f"• Temporary API issues\n\n"
+                f"💡 Try /check {address} for a fresh attempt"
+            )
+    
+    async def _handle_remove_button(self, query, callback_data: str):
+        """Handle remove button press"""
+        # Extract address from callback data
+        address = callback_data.replace("remove_", "")
+        
+        # Check if address is being tracked
+        if address not in self.notifier.dynamic_addresses:
+            await query.edit_message_text(
+                f"⚠️ Address not found\n\n"
+                f"Address {address[:10]}...{address[-8:]} is not being tracked.\n\n"
+                f"💡 Use /list to see current tracked addresses"
+            )
+            return
+        
+        # Get label before removal
+        all_labels = self.notifier.get_all_address_labels()
+        label = all_labels.get(address, f"{address[:6]}...{address[-4:]}")
+        
+        # Remove from dynamic addresses
+        del self.notifier.dynamic_addresses[address]
+        self.notifier._save_dynamic_addresses()
+        
+        # Send confirmation
+        await query.edit_message_text(
+            f"✅ Address Removed Successfully!\n\n"
+            f"📍 {label}\n"
+            f"📊 {address[:10]}...{address[-8:]}\n\n"
+            f"🛑 No longer monitoring this address\n\n"
+            f"💡 Use /list to see remaining tracked addresses"
+        )
+        
+        # Send notification to all users about removal
+        await self.notifier.send_address_removed_notification(address, label)
+        
+        # Log the action
+        username = query.from_user.username or "Unknown"
+        user_id = query.from_user.id
+        self.logger.info(f"Remove button used by @{username} (ID: {user_id}): {address} ({label})")
     
     async def echo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Echo any text message - available to everyone"""
@@ -325,12 +474,16 @@ class WhaleTrackerCommandHandler:
             self.application.add_handler(CommandHandler("help", self.help_command))
             self.application.add_handler(CommandHandler("start", self.start_command))
             
+            # Add callback handler for button presses
+            self.application.add_handler(CallbackQueryHandler(self.button_callback))
+            
             # Add message handler for echo functionality
             # This handles all text messages that are not commands
             self.application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.echo_message))
             
             self.logger.info("🤖 Telegram command handler started")
             self.logger.info("🌍 All commands available to everyone: /add, /remove, /list, /check, /help, /start")
+            self.logger.info("🔘 Interactive buttons enabled for /list command")
             self.logger.info("🔄 Echo functionality enabled for everyone")
             self.logger.info("💡 Use /help in Telegram for usage instructions")
             
@@ -390,7 +543,7 @@ async def main():
     print("   /add address:label - Add new address with label")
     print("   /add address - Add new address")
     print("   /remove address - Remove address from tracking")
-    print("   /list - Show tracked addresses")
+    print("   /list - Show tracked addresses with interactive buttons")
     print("   /check address - Check positions for any address")
     print("   /help - Show help message")
     print("   /start - Show welcome message")
