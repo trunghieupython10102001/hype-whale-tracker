@@ -159,14 +159,17 @@ class TelegramNotifier:
     async def send_message(self, message: str, parse_mode: str = None) -> bool:
         """Send a message to all users (broadcast)"""
         if not self.enabled or not self.bot:
+            self.logger.debug("Telegram bot not enabled or not initialized")
             return False
         
         # Get all user chat IDs for broadcasting
         all_chat_ids = self.get_all_user_chat_ids()
+        self.logger.debug(f"🔍 Retrieved {len(all_chat_ids)} user chat IDs for broadcast: {all_chat_ids}")
         
         # If no users registered, fall back to main chat ID (if configured)
         if not all_chat_ids and self.config.TELEGRAM_CHAT_ID:
             all_chat_ids = [int(self.config.TELEGRAM_CHAT_ID)]
+            self.logger.debug(f"No users registered, falling back to main chat ID: {all_chat_ids}")
         
         if not all_chat_ids:
             self.logger.warning("No users to send message to. Users need to interact with the bot first.")
@@ -174,8 +177,10 @@ class TelegramNotifier:
         
         success_count = 0
         
-        for chat_id in all_chat_ids:
+        for i, chat_id in enumerate(all_chat_ids):
             try:
+                self.logger.debug(f"📤 Sending message to user {i+1}/{len(all_chat_ids)}: {chat_id}")
+                
                 # Use plain text instead of HTML formatting
                 parse_mode = None
                 
@@ -190,22 +195,28 @@ class TelegramNotifier:
                     timeout=15.0  # 15 second timeout
                 )
                 success_count += 1
+                self.logger.debug(f"✅ Message sent successfully to {chat_id}")
                 
                 # Small delay between messages to avoid rate limiting
                 await asyncio.sleep(0.1)
                 
             except asyncio.TimeoutError:
-                self.logger.error(f"Failed to send message to {chat_id}: Connection timed out")
+                self.logger.error(f"❌ Failed to send message to {chat_id}: Connection timed out")
             except (TimedOut, NetworkError) as e:
-                self.logger.error(f"Failed to send message to {chat_id}: Network error - {e}")
+                self.logger.error(f"❌ Failed to send message to {chat_id}: Network error - {e}")
             except Exception as e:
-                self.logger.error(f"Failed to send message to {chat_id}: {e}")
+                self.logger.error(f"❌ Failed to send message to {chat_id}: {e}")
+                
+                # If chat not found, remove the invalid user
+                if "Chat not found" in str(e):
+                    self.logger.warning(f"Removing invalid user {chat_id} from broadcast list")
+                    self._remove_invalid_user(chat_id)
         
         if success_count > 0:
-            self.logger.info(f"Successfully sent message to {success_count}/{len(all_chat_ids)} users")
+            self.logger.info(f"📊 Successfully sent message to {success_count}/{len(all_chat_ids)} users")
             return True
         else:
-            self.logger.error("Failed to send message to any users")
+            self.logger.error("❌ Failed to send message to any users")
             return False
     
     def _format_position_change_message(self, change: Any) -> str:
@@ -392,7 +403,9 @@ class TelegramNotifier:
         try:
             if os.path.exists(self.user_chat_ids_file):
                 with open(self.user_chat_ids_file, 'r') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    self.logger.debug(f"📂 Loaded {len(data)} users from {self.user_chat_ids_file}")
+                    return data
         except Exception as e:
             self.logger.error(f"Error loading user chat IDs: {e}")
         return {}
@@ -405,6 +418,19 @@ class TelegramNotifier:
                 json.dump(self.user_chat_ids, f, indent=2)
         except Exception as e:
             self.logger.error(f"Error saving user chat IDs: {e}")
+    
+    def _remove_invalid_user(self, chat_id: int):
+        """Remove an invalid user from the broadcast list"""
+        try:
+            user_key = str(chat_id)
+            if user_key in self.user_chat_ids:
+                user_info = self.user_chat_ids[user_key]
+                username = user_info.get('username', 'Unknown')
+                del self.user_chat_ids[user_key]
+                self._save_user_chat_ids()
+                self.logger.info(f"Removed invalid user from broadcast list: @{username} (ID: {chat_id})")
+        except Exception as e:
+            self.logger.error(f"Error removing invalid user {chat_id}: {e}")
     
     def _validate_address(self, address: str) -> bool:
         """Validate if an address looks like a valid Ethereum address"""
@@ -449,7 +475,10 @@ class TelegramNotifier:
     
     def get_all_user_chat_ids(self) -> List[int]:
         """Get all user chat IDs for broadcasting"""
-        return [user_info['chat_id'] for user_info in self.user_chat_ids.values()]
+        chat_ids = [user_info['chat_id'] for user_info in self.user_chat_ids.values()]
+        self.logger.debug(f"🔍 get_all_user_chat_ids: Found {len(chat_ids)} users: {chat_ids}")
+        self.logger.debug(f"🔍 Raw user_chat_ids data: {self.user_chat_ids}")
+        return chat_ids
     
     async def handle_add_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /add command to add new addresses"""
