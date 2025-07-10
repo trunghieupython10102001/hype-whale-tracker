@@ -457,15 +457,20 @@ class HyperliquidTracker:
             
             # Send Telegram notifications - one alert per position change
             if self.config.ENABLE_TELEGRAM_ALERTS and self.telegram_notifier.enabled:
+                self.logger.info(f"📨 Attempting to send {len(all_changes)} Telegram notifications...")
                 try:
                     # Send individual alert for each position change
                     for change in all_changes:
+                        self.logger.info(f"📨 Processing notification for: {change.change_type} {change.symbol}")
                         await self.telegram_notifier.send_position_change(change)
                         # Small delay between messages to avoid rate limiting
                         await asyncio.sleep(0.5)
+                    self.logger.info("✅ All Telegram notifications processed")
                 except Exception as e:
                     self.logger.error(f"Failed to send Telegram notification: {e}")
                     self.logger.error("Continuing without Telegram notifications for this session")
+            else:
+                self.logger.warning(f"⚠️ Telegram notifications disabled - alerts:{self.config.ENABLE_TELEGRAM_ALERTS}, enabled:{self.telegram_notifier.enabled}")
             
             # Save updated positions
             self._save_positions()

@@ -49,8 +49,18 @@ class TelegramNotifier:
         # File to store dynamically added addresses
         self.dynamic_addresses_file = f"{self.config.DATA_DIR}/dynamic_addresses.json"
         
+        # File to store all user chat IDs for broadcasting
+        self.user_chat_ids_file = f"{self.config.DATA_DIR}/user_chat_ids.json"
+        
         # Load dynamically added addresses
         self.dynamic_addresses = self._load_dynamic_addresses()
+        
+        # Load user chat IDs for broadcasting
+        self.user_chat_ids = self._load_user_chat_ids()
+        
+        # Add main chat ID as a user if configured and no users exist
+        if self.config.TELEGRAM_CHAT_ID and not self.user_chat_ids:
+            self.add_user(int(self.config.TELEGRAM_CHAT_ID), "MainChat", "Main User")
         
         # Initialize if Telegram is enabled and available
         if self.config.ENABLE_TELEGRAM_ALERTS and TELEGRAM_AVAILABLE:
@@ -147,34 +157,55 @@ class TelegramNotifier:
             return False
     
     async def send_message(self, message: str, parse_mode: str = None) -> bool:
-        """Send a message to the configured chat"""
+        """Send a message to all users (broadcast)"""
         if not self.enabled or not self.bot:
             return False
         
-        try:
-            # Use plain text instead of HTML formatting
-            parse_mode = None
-            
-            # Add timeout to message sending
-            await asyncio.wait_for(
-                self.bot.send_message(
-                    chat_id=self.config.TELEGRAM_CHAT_ID,
-                    text=message,
-                    parse_mode=parse_mode,
-                    disable_web_page_preview=True
-                ),
-                timeout=15.0  # 15 second timeout
-            )
+        # Get all user chat IDs for broadcasting
+        all_chat_ids = self.get_all_user_chat_ids()
+        
+        # If no users registered, fall back to main chat ID (if configured)
+        if not all_chat_ids and self.config.TELEGRAM_CHAT_ID:
+            all_chat_ids = [int(self.config.TELEGRAM_CHAT_ID)]
+        
+        if not all_chat_ids:
+            self.logger.warning("No users to send message to. Users need to interact with the bot first.")
+            return False
+        
+        success_count = 0
+        
+        for chat_id in all_chat_ids:
+            try:
+                # Use plain text instead of HTML formatting
+                parse_mode = None
+                
+                # Add timeout to message sending
+                await asyncio.wait_for(
+                    self.bot.send_message(
+                        chat_id=chat_id,
+                        text=message,
+                        parse_mode=parse_mode,
+                        disable_web_page_preview=True
+                    ),
+                    timeout=15.0  # 15 second timeout
+                )
+                success_count += 1
+                
+                # Small delay between messages to avoid rate limiting
+                await asyncio.sleep(0.1)
+                
+            except asyncio.TimeoutError:
+                self.logger.error(f"Failed to send message to {chat_id}: Connection timed out")
+            except (TimedOut, NetworkError) as e:
+                self.logger.error(f"Failed to send message to {chat_id}: Network error - {e}")
+            except Exception as e:
+                self.logger.error(f"Failed to send message to {chat_id}: {e}")
+        
+        if success_count > 0:
+            self.logger.info(f"Successfully sent message to {success_count}/{len(all_chat_ids)} users")
             return True
-            
-        except asyncio.TimeoutError:
-            self.logger.error("Failed to send Telegram message: Connection timed out")
-            return False
-        except (TimedOut, NetworkError) as e:
-            self.logger.error(f"Failed to send Telegram message: Network error - {e}")
-            return False
-        except Exception as e:
-            self.logger.error(f"Failed to send Telegram message: {e}")
+        else:
+            self.logger.error("Failed to send message to any users")
             return False
     
     def _format_position_change_message(self, change: Any) -> str:
@@ -228,6 +259,7 @@ class TelegramNotifier:
     async def send_position_change(self, change: Any) -> bool:
         """Send a position change notification (skip opened positions)"""
         if not self.config.TELEGRAM_SEND_POSITION_CHANGES:
+            self.logger.debug("Position change notifications disabled in config")
             return True
         
         # Skip "opened" positions - only send alerts for actual changes
@@ -235,8 +267,17 @@ class TelegramNotifier:
             self.logger.debug(f"Skipping 'opened' position notification for {change.symbol}")
             return True
         
+        self.logger.info(f"📨 Sending position change notification: {change.change_type} {change.symbol}")
+        
         message = self._format_position_change_message(change)
-        return await self.send_message(message)
+        result = await self.send_message(message)
+        
+        if result:
+            self.logger.info(f"✅ Position change notification sent successfully: {change.symbol}")
+        else:
+            self.logger.error(f"❌ Failed to send position change notification: {change.symbol}")
+        
+        return result
     
     async def send_multiple_changes(self, changes: List[Any]) -> bool:
         """DEPRECATED: Send multiple position changes in a single message
@@ -346,6 +387,25 @@ class TelegramNotifier:
         except Exception as e:
             self.logger.error(f"Error saving dynamic addresses: {e}")
     
+    def _load_user_chat_ids(self) -> Dict[str, int]:
+        """Load all user chat IDs from file"""
+        try:
+            if os.path.exists(self.user_chat_ids_file):
+                with open(self.user_chat_ids_file, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            self.logger.error(f"Error loading user chat IDs: {e}")
+        return {}
+    
+    def _save_user_chat_ids(self):
+        """Save all user chat IDs to file"""
+        try:
+            os.makedirs(self.config.DATA_DIR, exist_ok=True)
+            with open(self.user_chat_ids_file, 'w') as f:
+                json.dump(self.user_chat_ids, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Error saving user chat IDs: {e}")
+    
     def _validate_address(self, address: str) -> bool:
         """Validate if an address looks like a valid Ethereum address"""
         if not address:
@@ -365,9 +425,38 @@ class TelegramNotifier:
         except ValueError:
             return False
     
+    def add_user(self, user_id: int, username: str = None, first_name: str = None):
+        """Add a new user to the broadcast list"""
+        user_key = str(user_id)
+        user_info = {
+            'chat_id': user_id,
+            'username': username or 'Unknown',
+            'first_name': first_name or 'Unknown',
+            'added_at': datetime.now().isoformat()
+        }
+        
+        if user_key not in self.user_chat_ids:
+            self.user_chat_ids[user_key] = user_info
+            self._save_user_chat_ids()
+            self.logger.info(f"Added new user to broadcast list: @{username} (ID: {user_id})")
+        else:
+            # Update existing user info
+            self.user_chat_ids[user_key].update({
+                'username': username or self.user_chat_ids[user_key].get('username', 'Unknown'),
+                'first_name': first_name or self.user_chat_ids[user_key].get('first_name', 'Unknown')
+            })
+            self._save_user_chat_ids()
+    
+    def get_all_user_chat_ids(self) -> List[int]:
+        """Get all user chat IDs for broadcasting"""
+        return [user_info['chat_id'] for user_info in self.user_chat_ids.values()]
+    
     async def handle_add_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /add command to add new addresses"""
         try:
+            # Register user for broadcasts
+            user = update.message.from_user
+            self.add_user(user.id, user.username, user.first_name)
             
             if not context.args:
                 await update.message.reply_text(
@@ -396,8 +485,8 @@ class TelegramNotifier:
                 )
                 return
             
-            # Check if already tracking
-            if address in self.config.TRACKED_ADDRESSES or address in self.dynamic_addresses:
+            # Check if already tracking (only check dynamic addresses)
+            if address in self.dynamic_addresses:
                 await update.message.reply_text(
                     f"⚠️ Address {address[:10]}... is already being tracked"
                 )
@@ -407,8 +496,7 @@ class TelegramNotifier:
             self.dynamic_addresses[address] = label
             self._save_dynamic_addresses()
             
-            # Add to runtime tracking
-            self.config.TRACKED_ADDRESSES.append(address)
+            # Note: No longer adding to config.TRACKED_ADDRESSES - use only dynamic addresses
             
             # Send confirmation reply
             await update.message.reply_text(
@@ -435,33 +523,25 @@ class TelegramNotifier:
     async def handle_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /list command to show tracked addresses"""
         try:
+            # Register user for broadcasts
+            user = update.message.from_user
+            self.add_user(user.id, user.username, user.first_name)
             
             message = "📊 Tracked Addresses:\n\n"
             
-            # Get all labels (static + dynamic)
-            all_labels = self.config.get_address_labels()
-            all_labels.update(self.dynamic_addresses)
-            
-            # Get all unique addresses being tracked
+            # Get all tracked addresses (only dynamic from Telegram)
             all_tracked_addresses = self.get_all_tracked_addresses()
             
-            # Count static addresses (those NOT in dynamic_addresses)
-            static_count = 0
-            for address in all_tracked_addresses:
-                if address not in self.dynamic_addresses:
-                    static_count += 1
-            
             for i, address in enumerate(all_tracked_addresses, 1):
-                label = all_labels.get(address, f"{address[:6]}...{address[-4:]}")
-                source = "📌" if address in self.dynamic_addresses else "⚙️"
+                label = self.dynamic_addresses.get(address, f"{address[:6]}...{address[-4:]}")
                 
-                message += f"{source} {label}\n"
+                message += f"📌 {label}\n"
                 message += f"   📍 {address[:10]}...{address[-8:]}\n"
                 message += f"   🔗 https://hyperdash.info/trader/{address}\n\n"
             
             message += f"📈 Total: {len(all_tracked_addresses)} addresses\n"
             message += f"📌 Dynamic: {len(self.dynamic_addresses)} addresses\n"
-            message += f"⚙️ Static: {static_count} addresses"
+            message += f"⚙️ Static: 0 addresses"
             
             await update.message.reply_text(message)
             
@@ -477,6 +557,9 @@ class TelegramNotifier:
     async def handle_remove_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /remove command to remove addresses"""
         try:
+            # Register user for broadcasts
+            user = update.message.from_user
+            self.add_user(user.id, user.username, user.first_name)
             
             if not context.args:
                 await update.message.reply_text(
@@ -496,8 +579,8 @@ class TelegramNotifier:
                 )
                 return
             
-            # Check if address is being tracked
-            if address not in self.config.TRACKED_ADDRESSES:
+            # Check if address is being tracked (only check dynamic addresses)
+            if address not in self.dynamic_addresses:
                 await update.message.reply_text(
                     f"⚠️ Address {address[:10]}... is not being tracked"
                 )
@@ -507,14 +590,9 @@ class TelegramNotifier:
             all_labels = self.get_all_address_labels()
             label = all_labels.get(address, f"{address[:6]}...{address[-4:]}")
             
-            # Remove from tracking
-            if address in self.config.TRACKED_ADDRESSES:
-                self.config.TRACKED_ADDRESSES.remove(address)
-            
-            # Remove from dynamic addresses if it exists there
-            if address in self.dynamic_addresses:
-                del self.dynamic_addresses[address]
-                self._save_dynamic_addresses()
+            # Remove from dynamic addresses
+            del self.dynamic_addresses[address]
+            self._save_dynamic_addresses()
             
             # Send confirmation
             await update.message.reply_text(
@@ -537,14 +615,13 @@ class TelegramNotifier:
             await update.message.reply_text("❌ Error processing command")
     
     def get_all_tracked_addresses(self) -> List[str]:
-        """Get all tracked addresses (static + dynamic)"""
-        return list(set(self.config.TRACKED_ADDRESSES))
+        """Get all tracked addresses (only dynamic from Telegram)"""
+        # Only return dynamic addresses added via Telegram - ignore config file addresses
+        return list(self.dynamic_addresses.keys())
     
     def get_all_address_labels(self) -> Dict[str, str]:
-        """Get all address labels (static + dynamic)"""
-        labels = self.config.get_address_labels().copy()
-        labels.update(self.dynamic_addresses)
-        return labels
+        """Get all address labels (only dynamic from Telegram)"""
+        return self.dynamic_addresses.copy()
 
 
 # Global notifier instance

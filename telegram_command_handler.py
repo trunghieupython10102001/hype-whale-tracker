@@ -41,6 +41,10 @@ class WhaleTrackerCommandHandler:
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command - available to everyone"""
+        # Register user for broadcasts
+        user = update.message.from_user
+        self.notifier.add_user(user.id, user.username, user.first_name)
+        
         help_text = (
             "🐋 Whale Tracker Commands\n\n"
             "🌍 All Commands (available to everyone):\n\n"
@@ -72,6 +76,10 @@ class WhaleTrackerCommandHandler:
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command - available to everyone"""
+        # Register user for broadcasts
+        user = update.message.from_user
+        self.notifier.add_user(user.id, user.username, user.first_name)
+        
         username = update.message.from_user.first_name or "User"
         
         welcome_text = (
@@ -84,7 +92,8 @@ class WhaleTrackerCommandHandler:
             "❓ /help - Show all commands\n\n"
             "💡 Try: /check 0x[address] to see someone's positions!\n"
             "💡 Or: /add 0x[address]:Label to start tracking!\n\n"
-            "📊 Built for tracking whale movements on Hyperliquid DEX"
+            "📊 Built for tracking whale movements on Hyperliquid DEX\n\n"
+            "🔔 You'll now receive whale movement alerts!"
         )
         
         # Log the new user
@@ -96,6 +105,10 @@ class WhaleTrackerCommandHandler:
     
     async def check_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /check command - available to everyone"""
+        # Register user for broadcasts
+        user = update.message.from_user
+        self.notifier.add_user(user.id, user.username, user.first_name)
+        
         # No authorization check - this command is public
         
         # Get the address from command arguments
@@ -154,6 +167,10 @@ class WhaleTrackerCommandHandler:
     
     async def echo_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Echo any text message - available to everyone"""
+        # Register user for broadcasts
+        user = update.message.from_user
+        self.notifier.add_user(user.id, user.username, user.first_name)
+        
         # Get the original message text
         original_text = update.message.text
         

@@ -74,8 +74,8 @@ Thumbs.db
 *.log
 whale_tracker.log
 
-# Data files (may contain sensitive position data)
-data/positions.json
+# Data files (may contain sensitive position data, user info, addresses)
+data/
 
 # Deployment files (may contain sensitive info)
 deploy-to-ec2.sh
